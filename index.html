@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NEURAL LABEL SYSTEM HACCP PRO | ВЛАВАШЕ ФУД КОМПАНИ</title>
+<title>NEURAL LABEL SYSTEM HACCP PRO</title>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
@@ -312,7 +312,7 @@ const SYSTEM_TEMPLATES = [
       {id:6,type:'text',label:'⚠ АЛЛЕРГЕНЫ:',value:'{allergens}',fontSize:10,isBold:true,color:'#d32f2f',condition:'allergens'},
       {id:7,type:'divider'},
       {id:8,type:'qr',qrData:'auto',size:60},
-      {id:9,type:'text',label:'',value:'ООО «ВЛАВАШЕ ФУД КОМПАНИ» | ХАССП',fontSize:7,isBold:false,align:'center'}
+      {id:9,type:'text',label:'',value:'«NEURAL_ARCHITECT_PREMIUM++v8.3» | ХАССП',fontSize:7,isBold:false,align:'center'}
     ]
   },
   {
@@ -474,7 +474,7 @@ function downloadTemplate() {
   const ws = XLSX.utils.json_to_sheet(template);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Шаблон сырья");
-  XLSX.writeFile(wb, "Шаблон_Номенклатуры_Влаваше.xlsx");
+  XLSX.writeFile(wb, "Шаблон_Номенклатуры.xlsx");
   showToast('📄 Шаблон скачан');
 }
 
