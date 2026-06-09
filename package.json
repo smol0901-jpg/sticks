@@ -1,0 +1,13 @@
+{
+  "name": "sticks",
+  "version": "1.0.0",
+  "description": "Универсальная система печати этикеток с ИИ",
+  "main": "index.html",
+  "scripts": {
+    "dev": "npx serve .",
+    "build": "echo 'Static build - no build needed'"
+  },
+  "keywords": ["label", "print", "design", "ai"],
+  "author": "",
+  "license": "MIT"
+}
