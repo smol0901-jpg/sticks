@@ -1,985 +1,771 @@
-// Sticks - Main App Controller
+// Sticks - Main Application
 class App {
   constructor() {
-    this.db = new SticksDB();
-    this.router = new Router();
-    this.modules = {};
-    this.initialized = false;
+    this.db = null;
+    this.router = null;
+    this.ai = window.aiModule;
+    this.currentPage = '';
   }
 
   async init() {
-    try {
-      // Initialize database
-      await this.db.init();
-      console.log('Database initialized');
-      
-      // Initialize router
-      this.setupRoutes();
-      this.router.init();
-      
-      // Initialize modules
-      await this.initModules();
-      
-      // Register service worker
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js')
-          .then(reg => console.log('SW registered'))
-          .catch(err => console.log('SW registration failed:', err));
-      }
-      
-      this.initialized = true;
-      console.log('Sticks app initialized');
-      
-    } catch (error) {
-      console.error('App initialization failed:', error);
-      this.showToast('Ошибка инициализации: ' + error.message, 'error');
-    }
+    console.log('Sticks v1.0.1 initializing...');
+    
+    // Initialize database
+    this.db = new Database();
+    await this.db.init();
+    
+    // Initialize AI
+    if (this.ai) await this.ai.init();
+    
+    // Initialize router
+    this.router = new Router();
+    this.setupRoutes();
+    this.router.init();
+    
+    console.log('Sticks initialized');
   }
 
   setupRoutes() {
     this.router
-      .add('/', () => this.renderHome(), 'home')
-      .add('/templates', () => this.renderTemplates(), 'templates')
-      .add('/templates/:id', (params) => this.renderTemplateEdit(params.id), 'template-edit')
-      .add('/print', () => this.renderPrint(), 'print')
-      .add('/products', () => this.renderProducts(), 'products')
-      .add('/ai', () => this.renderAI(), 'ai')
-      .add('/parser', () => this.renderParser(), 'parser')
-      .add('/map', () => this.renderMap(), 'map')
-      .add('/settings', () => this.renderSettings(), 'settings')
-      .add('*', () => this.render404(), '404');
+      .add('/', this.renderHome.bind(this), 'home')
+      .add('/templates', this.renderTemplates.bind(this), 'templates')
+      .add('/templates/:id', this.renderTemplateEdit.bind(this), 'template-edit')
+      .add('/products', this.renderProducts.bind(this), 'products')
+      .add('/products/:id', this.renderProductEdit.bind(this), 'product-edit')
+      .add('/print', this.renderPrint.bind(this), 'print')
+      .add('/print/:templateId', this.renderPrint.bind(this), 'print-template')
+      .add('/ai', this.renderAI.bind(this), 'ai')
+      .add('/parser', this.renderParser.bind(this), 'parser')
+      .add('/map', this.renderMap.bind(this), 'map')
+      .add('/settings', this.renderSettings.bind(this), 'settings')
+      .add('*', this.renderNotFound.bind(this), 'not-found');
   }
 
-  async initModules() {
-    // Lazy load modules as needed
-    this.modules.print = null;
-    this.modules.template = null;
-    this.modules.ai = null;
-    this.modules.parser = null;
-    this.modules.map = null;
+  updateHeader(title) {
+    document.querySelector('.header-title').textContent = title;
   }
 
-  async loadModule(name) {
-    if (this.modules[name]) return this.modules[name];
-    
-    const scripts = {
-      print: '/js/modules/print.js',
-      template: '/js/modules/template.js',
-      ai: '/js/ai.js',
-      parser: '/js/parser.js',
-      map: '/js/map.js'
-    };
-    
-    if (scripts[name]) {
-      await import(scripts[name]);
-    }
-    
-    return this.modules[name];
+  render(content) {
+    document.getElementById('content').innerHTML = content;
   }
 
   async renderHome() {
-    const content = document.getElementById('content');
-    content.innerHTML = `
+    this.updateHeader('Главная');
+    
+    const stats = {
+      templates: await this.db.count('templates'),
+      products: await this.db.count('products'),
+      prints: await this.db.count('prints')
+    };
+
+    this.render(`
       <div class="welcome-section">
         <h1>Добро пожаловать в Sticks</h1>
-        <p>Универсальная система печати этикеток</p>
+        <p>Система печати этикеток с ИИ</p>
         
-        <div class="grid grid-4">
+        <div class="grid grid-3">
           <div class="card stat-card">
             <div class="stat-icon">📋</div>
-            <div class="stat-value">${await this.getStat('templates')}</div>
+            <div class="stat-value">${stats.templates}</div>
             <div class="stat-label">Шаблонов</div>
           </div>
           <div class="card stat-card">
             <div class="stat-icon">🏷️</div>
-            <div class="stat-value">${await this.getStat('products')}</div>
+            <div class="stat-value">${stats.products}</div>
             <div class="stat-label">Товаров</div>
           </div>
           <div class="card stat-card">
             <div class="stat-icon">🖨️</div>
-            <div class="stat-value">${await this.getStat('printJobs')}</div>
+            <div class="stat-value">${stats.prints}</div>
             <div class="stat-label">Печатей</div>
-          </div>
-          <div class="card stat-card">
-            <div class="stat-icon">🤖</div>
-            <div class="stat-value">${await this.getStat('aiData')}</div>
-            <div class="stat-label">ИИ данных</div>
           </div>
         </div>
         
         <div class="quick-actions">
           <h2>Быстрые действия</h2>
-          <div class="grid grid-3">
-            <a href="#/templates" class="card action-card">
-              <div class="action-icon">➕</div>
+          <div class="grid grid-2">
+            <a href="#/templates" class="card action-card" data-link>
+              <div class="action-icon">📋</div>
               <div class="action-title">Новый шаблон</div>
-              <div class="action-desc">Создать этикетку с нуля</div>
+              <div class="action-desc">Создать этикетку</div>
             </a>
-            <a href="#/print" class="card action-card">
+            <a href="#/products" class="card action-card" data-link>
+              <div class="action-icon">🏷️</div>
+              <div class="action-title">Добавить товар</div>
+              <div class="action-desc">Заполнить карточку</div>
+            </a>
+            <a href="#/print" class="card action-card" data-link>
               <div class="action-icon">🖨️</div>
               <div class="action-title">Печать</div>
-              <div class="action-desc">Печать этикеток</div>
+              <div class="action-desc">Напечатать этикетки</div>
             </a>
-            <a href="#/parser" class="card action-card">
-              <div class="action-icon">📥</div>
-              <div class="action-title">Импорт</div>
-              <div class="action-desc">Загрузить данные</div>
+            <a href="#/ai" class="card action-card" data-link>
+              <div class="action-icon">🤖</div>
+              <div class="action-title">ИИ Помощник</div>
+              <div class="action-desc">Спросить ИИ</div>
             </a>
           </div>
         </div>
       </div>
-    `;
-    
-    this.updateHeader('Главная');
-  }
-
-  async getStat(store) {
-    try {
-      const items = await this.db.getAll(store);
-      return items.length;
-    } catch {
-      return 0;
-    }
+    `);
   }
 
   async renderTemplates() {
-    const content = document.getElementById('content');
+    this.updateHeader('Шаблоны');
     const templates = await this.db.getAll('templates');
-    
-    content.innerHTML = `
+
+    this.render(`
       <div class="page-header">
         <h1>Шаблоны этикеток</h1>
-        <button class="btn btn-primary" onclick="app.router.navigate('/templates/new')">
-          ➕ Новый шаблон
-        </button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary" onclick="app.importData()">📥 Импорт</button>
+          <button class="btn btn-primary" onclick="app.createTemplate()">+ Новый</button>
+        </div>
       </div>
       
-      ${templates.length === 0 ? `
-        <div class="empty-state">
-          <div class="empty-icon">📋</div>
-          <h3>Нет шаблонов</h3>
-          <p>Создайте первый шаблон этикетки</p>
-          <button class="btn btn-primary" onclick="app.router.navigate('/templates/new')">
-            Создать шаблон
-          </button>
-        </div>
-      ` : `
-        <div class="templates-grid grid grid-3">
+      ${templates.length ? `
+        <div class="grid grid-3">
           ${templates.map(t => `
-            <div class="card template-card" onclick="app.router.navigate('/templates/${t.id}')">
-              <div class="template-preview">
-                <div class="preview-label" style="width: ${t.width || 100}mm; height: ${t.height || 50}mm;"></div>
+            <div class="card">
+              <div class="label-canvas" style="width: 150px; height: 100px; margin: 0 auto 16px;">
+                ${this.renderLabelPreview(t)}
               </div>
-              <div class="template-info">
-                <div class="template-name">${t.name || 'Без названия'}</div>
-                <div class="template-size">${t.width || 100}×${t.height || 50} мм</div>
+              <h3>${t.name}</h3>
+              <p style="color: var(--text-secondary); font-size: 0.85rem;">${t.width}×${t.height}мм</p>
+              <div style="display: flex; gap: 8px; margin-top: 16px;">
+                <button class="btn btn-secondary" onclick="app.editTemplate('${t.id}')">Изменить</button>
+                <button class="btn btn-secondary" onclick="app.duplicateTemplate('${t.id}')">Копировать</button>
+                <button class="btn btn-secondary" onclick="app.deleteTemplate('${t.id}')" style="color: #ff4757;">Удалить</button>
               </div>
             </div>
           `).join('')}
         </div>
+      ` : `
+        <div class="empty-state">
+          <p>Шаблонов пока нет</p>
+          <button class="btn btn-primary" onclick="app.createTemplate()" style="margin-top: 16px;">Создать первый</button>
+        </div>
       `}
-    `;
-    
-    this.updateHeader('Шаблоны');
+    `);
   }
 
-  async renderTemplateEdit(id) {
-    const content = document.getElementById('content');
-    let template = null;
+  renderLabelPreview(template) {
+    if (!template.elements) return '';
+    return template.elements.map(el => {
+      const style = `position: absolute; left: ${el.x}%; top: ${el.y}%; width: ${el.width}%; font-size: ${el.fontSize || 12}px;`;
+      return `<div style="${style}">${el.content || ''}</div>`;
+    }).join('');
+  }
+
+  async createTemplate() {
+    const template = {
+      id: 'tpl_' + Date.now(),
+      name: 'Новый шаблон',
+      width: 50,
+      height: 30,
+      elements: [
+        { type: 'text', content: 'Название', x: 5, y: 10, fontSize: 14, fontWeight: 'bold' },
+        { type: 'text', content: 'Артикул: SKU001', x: 5, y: 40, fontSize: 10 },
+        { type: 'text', content: '100 ₽', x: 60, y: 70, fontSize: 18, fontWeight: 'bold' }
+      ],
+      createdAt: new Date().toISOString()
+    };
     
-    if (id !== 'new' && id) {
-      template = await this.db.get('templates', parseInt(id));
+    await this.db.add('templates', template);
+    this.router.navigate('/templates/' + template.id);
+  }
+
+  async editTemplate(id) {
+    this.router.navigate('/templates/' + id);
+  }
+
+  async duplicateTemplate(id) {
+    const original = await this.db.get('templates', id);
+    const copy = {
+      ...original,
+      id: 'tpl_' + Date.now(),
+      name: original.name + ' (копия)',
+      createdAt: new Date().toISOString()
+    };
+    await this.db.add('templates', copy);
+    this.showToast('Шаблон скопирован', 'success');
+    this.renderTemplates();
+  }
+
+  async deleteTemplate(id) {
+    if (confirm('Удалить шаблон?')) {
+      await this.db.delete('templates', id);
+      this.showToast('Шаблон удалён', 'success');
+      this.renderTemplates();
     }
-    
-    content.innerHTML = `
-      <div class="page-header">
-        <button class="btn btn-secondary" onclick="app.router.navigate('/templates')">← Назад</button>
-        <h1>${template ? 'Редактор шаблона' : 'Новый шаблон'}</h1>
-        <button class="btn btn-primary" onclick="app.saveTemplate()">💾 Сохранить</button>
-      </div>
-      
+  }
+
+  async renderTemplateEdit(params) {
+    const template = await this.db.get('templates', params.id);
+    this.updateHeader(template?.name || 'Редактор шаблона');
+
+    if (!template) {
+      this.render(`<div class="empty-state"><p>Шаблон не найден</p></div>`);
+      return;
+    }
+
+    this.render(`
       <div class="template-editor">
         <div class="editor-sidebar">
+          <h3>Свойства</h3>
           <div class="form-group">
             <label class="form-label">Название</label>
-            <input type="text" class="form-input" id="templateName" value="${template?.name || ''}">
+            <input type="text" class="form-input" id="templateName" value="${template.name}" onchange="app.saveTemplate('${template.id}')">
           </div>
           <div class="form-group">
             <label class="form-label">Ширина (мм)</label>
-            <input type="number" class="form-input" id="templateWidth" value="${template?.width || 100}">
+            <input type="number" class="form-input" id="templateWidth" value="${template.width}" onchange="app.saveTemplate('${template.id}')">
           </div>
           <div class="form-group">
             <label class="form-label">Высота (мм)</label>
-            <input type="number" class="form-input" id="templateHeight" value="${template?.height || 50}">
+            <input type="number" class="form-input" id="templateHeight" value="${template.height}" onchange="app.saveTemplate('${template.id}')">
           </div>
           
-          <h3>Элементы</h3>
+          <h3 style="margin-top: 24px;">Элементы</h3>
           <div class="elements-list">
-            <button class="btn btn-secondary element-btn" data-type="text">📝 Текст</button>
-            <button class="btn btn-secondary element-btn" data-type="barcode">📊 Штрихкод</button>
-            <button class="btn btn-secondary element-btn" data-type="qrcode">📱 QR-код</button>
-            <button class="btn btn-secondary element-btn" data-type="image">🖼️ Изображение</button>
-            <button class="btn btn-secondary element-btn" data-type="line">➖ Линия</button>
-            <button class="btn btn-secondary element-btn" data-type="rect">⬜ Прямоугольник</button>
+            ${template.elements.map((el, i) => `
+              <button class="btn btn-secondary element-btn" onclick="app.selectElement('${template.id}', ${i})">
+                ${el.type}: ${el.content?.substring(0, 20) || 'элемент'}
+              </button>
+            `).join('')}
+            <button class="btn btn-primary element-btn" onclick="app.addElement('${template.id}')">+ Добавить</button>
           </div>
+          
+          <button class="btn btn-primary" style="width: 100%; margin-top: 24px;" onclick="window.print()">🖨️ Печать</button>
         </div>
         
         <div class="editor-canvas">
-          <div class="label-canvas" id="labelCanvas" style="width: ${(template?.width || 100) * 3.78}px; height: ${(template?.height || 50) * 3.78}px;">
-            ${template?.elements ? template.elements.map(el => this.renderElement(el)).join('') : ''}
+          <div class="label-canvas" style="width: ${template.width * 3}px; height: ${template.height * 3}px;">
+            ${this.renderLabelPreview(template)}
           </div>
         </div>
       </div>
-    `;
-    
-    this.updateHeader(template ? template.name : 'Новый шаблон');
-    this.initLabelEditor();
+    `);
   }
 
-  renderElement(el) {
-    const styles = `left: ${el.x}px; top: ${el.y}px; width: ${el.width}px; height: ${el.height}px;`;
-    
-    switch (el.type) {
-      case 'text':
-        return `<div class="label-element" data-id="${el.id}" style="${styles} font-size: ${el.fontSize || 12}px;">${el.content || 'Текст'}</div>`;
-      case 'barcode':
-        return `<div class="label-element" data-id="${el.id}" style="${styles}">📊</div>`;
-      case 'qrcode':
-        return `<div class="label-element" data-id="${el.id}" style="${styles}">📱</div>`;
-      case 'image':
-        return `<div class="label-element" data-id="${el.id}" style="${styles}">🖼️</div>`;
-      case 'line':
-        return `<div class="label-element" data-id="${el.id}" style="${styles}; border-bottom: 2px solid black;"></div>`;
-      case 'rect':
-        return `<div class="label-element" data-id="${el.id}" style="${styles}; border: 1px solid black;"></div>`;
-      default:
-        return '';
-    }
-  }
-
-  initLabelEditor() {
-    const canvas = document.getElementById('labelCanvas');
-    if (!canvas) return;
-    
-    // Add element buttons
-    document.querySelectorAll('.element-btn').forEach(btn => {
-      btn.addEventListener('click', () => this.addElement(btn.dataset.type));
-    });
-    
-    // Drag and drop
-    canvas.addEventListener('mousedown', (e) => this.handleElementDrag(e));
-  }
-
-  addElement(type) {
-    const canvas = document.getElementById('labelCanvas');
-    const id = Date.now();
-    const element = {
-      id,
-      type,
-      x: 20,
-      y: 20,
-      width: type === 'text' ? 100 : 50,
-      height: type === 'text' ? 30 : 50,
-      content: type === 'text' ? 'Текст' : ''
-    };
-    
-    canvas.insertAdjacentHTML('beforeend', this.renderElement(element));
-  }
-
-  handleElementDrag(e) {
-    const element = e.target.closest('.label-element');
-    if (!element) return;
-    
-    e.preventDefault();
-    const canvas = document.getElementById('labelCanvas');
-    const rect = canvas.getBoundingClientRect();
-    
-    let startX = e.clientX;
-    let startY = e.clientY;
-    let elemX = parseInt(element.style.left);
-    let elemY = parseInt(element.style.top);
-    
-    const onMove = (e) => {
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      element.style.left = (elemX + dx) + 'px';
-      element.style.top = (elemY + dy) + 'px';
-    };
-    
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-    
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  }
-
-  async saveTemplate() {
-    const name = document.getElementById('templateName')?.value || 'Без названия';
-    const width = parseInt(document.getElementById('templateWidth')?.value || 100);
-    const height = parseInt(document.getElementById('templateHeight')?.value || 50);
-    
-    const elements = [];
-    document.querySelectorAll('.label-element').forEach(el => {
-      elements.push({
-        id: el.dataset.id,
-        type: el.dataset.type,
-        x: parseInt(el.style.left) || 0,
-        y: parseInt(el.style.top) || 0,
-        width: parseInt(el.style.width) || 50,
-        height: parseInt(el.style.height) || 30
-      });
-    });
-    
-    const template = { name, width, height, elements, updatedAt: new Date().toISOString() };
-    
-    await this.db.put('templates', template);
-    this.showToast('Шаблон сохранён', 'success');
-    this.router.navigate('/templates');
-  }
-
-  async renderPrint() {
-    const content = document.getElementById('content');
-    const templates = await this.db.getAll('templates');
-    const settings = {
-      printer: await this.db.getSetting('printer', ''),
-      copies: await this.db.getSetting('copies', 1)
-    };
-    
-    content.innerHTML = `
-      <div class="page-header">
-        <h1>Печать этикеток</h1>
-      </div>
-      
-      <div class="grid grid-2">
-        <div class="card">
-          <h3>Настройки печати</h3>
-          <div class="form-group">
-            <label class="form-label">Принтер</label>
-            <select class="form-input form-select" id="printPrinter">
-              <option value="">Системный принтер</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Количество копий</label>
-            <input type="number" class="form-input" id="printCopies" value="${settings.copies}" min="1">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Отступы (мм)</label>
-            <input type="number" class="form-input" id="printMargin" value="0" min="0">
-          </div>
-        </div>
-        
-        <div class="card">
-          <h3>Выбор шаблона</h3>
-          <div class="form-group">
-            <label class="form-label">Шаблон</label>
-            <select class="form-input form-select" id="printTemplate">
-              <option value="">Выберите шаблон</option>
-              ${templates.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Данные для печати</label>
-            <textarea class="form-input" id="printData" rows="6" placeholder="Введите данные (JSON или построчно)"></textarea>
-          </div>
-        </div>
-      </div>
-      
-      <div class="card">
-        <h3>Предпросмотр</h3>
-        <div class="print-preview" id="printPreview">
-          <div class="preview-placeholder">Выберите шаблон для предпросмотра</div>
-        </div>
-      </div>
-      
-      <div class="print-actions">
-        <button class="btn btn-primary btn-lg" onclick="app.doPrint()">🖨️ Печать</button>
-      </div>
-    `;
-    
-    this.updateHeader('Печать');
-    
-    // Preview update
-    document.getElementById('printTemplate')?.addEventListener('change', (e) => this.updatePrintPreview(e.target.value));
-  }
-
-  async updatePrintPreview(templateId) {
-    const preview = document.getElementById('printPreview');
-    if (!templateId) {
-      preview.innerHTML = '<div class="preview-placeholder">Выберите шаблон</div>';
-      return;
-    }
-    
-    const template = await this.db.get('templates', parseInt(templateId));
+  async saveTemplate(id) {
+    const template = await this.db.get('templates', id);
     if (!template) return;
     
-    preview.innerHTML = `
-      <div class="label-preview" style="width: ${template.width}mm; height: ${template.height}mm;">
-        ${template.elements?.map(el => this.renderElement(el)).join('') || ''}
-      </div>
-    `;
+    template.name = document.getElementById('templateName')?.value || template.name;
+    template.width = parseInt(document.getElementById('templateWidth')?.value) || template.width;
+    template.height = parseInt(document.getElementById('templateHeight')?.value) || template.height;
+    
+    await this.db.put('templates', template);
+    this.showToast('Сохранено', 'success');
   }
 
-  async doPrint() {
-    const templateId = document.getElementById('printTemplate')?.value;
-    const copies = parseInt(document.getElementById('printCopies')?.value || 1);
-    
-    if (!templateId) {
-      this.showToast('Выберите шаблон', 'error');
-      return;
-    }
-    
-    // Save settings
-    await this.db.setSetting('copies', copies);
-    
-    // Print via browser
-    window.print();
-    
-    // Log print job
-    await this.db.add('printJobs', {
-      templateId: parseInt(templateId),
-      copies,
-      date: new Date().toISOString(),
-      status: 'completed'
+  async addElement(templateId) {
+    const template = await this.db.get('templates', templateId);
+    template.elements.push({
+      type: 'text',
+      content: 'Новый элемент',
+      x: 10,
+      y: 50,
+      fontSize: 12
     });
-    
-    this.showToast('Отправлено на печать', 'success');
+    await this.db.put('templates', template);
+    this.renderTemplateEdit({ id: templateId });
+  }
+
+  selectElement(templateId, index) {
+    this.showToast('Редактирование элемента ' + index, 'info');
   }
 
   async renderProducts() {
-    const content = document.getElementById('content');
+    this.updateHeader('Товары');
     const products = await this.db.getAll('products');
-    
-    content.innerHTML = `
+
+    this.render(`
       <div class="page-header">
         <h1>Товары</h1>
-        <button class="btn btn-primary" onclick="app.showProductModal()">➕ Добавить товар</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary" onclick="app.showImportModal()">📥 Импорт</button>
+          <button class="btn btn-primary" onclick="app.createProduct()">+ Добавить</button>
+        </div>
       </div>
       
-      ${products.length === 0 ? `
-        <div class="empty-state">
-          <div class="empty-icon">🏷️</div>
-          <h3>Нет товаров</h3>
-          <p>Добавьте товары для печати этикеток</p>
-        </div>
-      ` : `
-        <div class="card">
-          <table class="data-table">
-            <thead>
+      ${products.length ? `
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Артикул</th>
+              <th>Название</th>
+              <th>Цена</th>
+              <th>Штрихкод</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${products.map(p => `
               <tr>
-                <th>Артикул</th>
-                <th>Название</th>
-                <th>Штрихкод</th>
-                <th>Цена</th>
-                <th>Действия</th>
+                <td>${p.sku}</td>
+                <td>${p.name}</td>
+                <td>${p.price} ₽</td>
+                <td>${p.barcode || '-'}</td>
+                <td>
+                  <button class="btn btn-secondary" onclick="app.editProduct('${p.id}')">Изменить</button>
+                  <button class="btn btn-secondary" onclick="app.printProduct('${p.id}')">Печать</button>
+                  <button class="btn btn-secondary" onclick="app.deleteProduct('${p.id}')" style="color: #ff4757;">Удалить</button>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              ${products.map(p => `
-                <tr>
-                  <td>${p.sku || '-'}</td>
-                  <td>${p.name || '-'}</td>
-                  <td>${p.barcode || '-'}</td>
-                  <td>${p.price ? p.price + ' ₽' : '-'}</td>
-                  <td>
-                    <button class="btn btn-secondary btn-icon" onclick="app.editProduct(${p.id})">✏️</button>
-                    <button class="btn btn-secondary btn-icon" onclick="app.deleteProduct(${p.id})">🗑️</button>
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
+            `).join('')}
+          </tbody>
+        </table>
+      ` : `
+        <div class="empty-state">
+          <p>Товаров пока нет</p>
+          <button class="btn btn-primary" onclick="app.createProduct()" style="margin-top: 16px;">Добавить первый</button>
         </div>
       `}
-    `;
-    
-    this.updateHeader('Товары');
+    `);
   }
 
-  showProductModal(product = null) {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay active';
-    modal.innerHTML = `
-      <div class="modal">
-        <div class="modal-header">
-          <h2>${product ? 'Редактировать' : 'Добавить'} товар</h2>
-          <button class="btn btn-icon" onclick="this.closest('.modal-overlay').remove()">✕</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">Артикул</label>
-            <input type="text" class="form-input" id="productSku" value="${product?.sku || ''}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Название</label>
-            <input type="text" class="form-input" id="productName" value="${product?.name || ''}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Штрихкод</label>
-            <input type="text" class="form-input" id="productBarcode" value="${product?.barcode || ''}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Цена</label>
-            <input type="number" class="form-input" id="productPrice" value="${product?.price || ''}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Описание</label>
-            <textarea class="form-input" id="productDesc" rows="3">${product?.description || ''}</textarea>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Отмена</button>
-          <button class="btn btn-primary" onclick="app.saveProduct(${product?.id || null})">Сохранить</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-  }
-
-  async saveProduct(id) {
+  async createProduct() {
     const product = {
-      sku: document.getElementById('productSku')?.value,
-      name: document.getElementById('productName')?.value,
-      barcode: document.getElementById('productBarcode')?.value,
-      price: parseFloat(document.getElementById('productPrice')?.value) || 0,
-      description: document.getElementById('productDesc')?.value,
-      updatedAt: new Date().toISOString()
+      id: 'prod_' + Date.now(),
+      sku: 'SKU' + Date.now().toString().slice(-6),
+      name: 'Новый товар',
+      price: 0,
+      barcode: '',
+      description: '',
+      createdAt: new Date().toISOString()
     };
     
-    if (id) product.id = id;
-    
-    await this.db.put('products', product);
-    this.showToast('Товар сохранён', 'success');
-    document.querySelector('.modal-overlay')?.remove();
-    this.router.navigate('/products', true);
+    await this.db.add('products', product);
+    this.router.navigate('/products/' + product.id);
+  }
+
+  async editProduct(id) {
+    this.router.navigate('/products/' + id);
+  }
+
+  async printProduct(id) {
+    const product = await this.db.get('products', id);
+    this.router.navigate('/print?product=' + id);
   }
 
   async deleteProduct(id) {
     if (confirm('Удалить товар?')) {
       await this.db.delete('products', id);
       this.showToast('Товар удалён', 'success');
-      this.router.navigate('/products', true);
+      this.renderProducts();
     }
   }
 
-  async renderAI() {
-    const content = document.getElementById('content');
-    const aiData = await this.db.getAll('aiData');
+  async renderProductEdit(params) {
+    const product = await this.db.get('products', params.id);
+    this.updateHeader(product?.name || 'Редактирование');
+
+    if (!product) {
+      this.render(`<div class="empty-state"><p>Товар не найден</p></div>`);
+      return;
+    }
+
+    this.render(`
+      <div class="card">
+        <h3>Карточка товара</h3>
+        <div class="form-group">
+          <label class="form-label">Артикул</label>
+          <input type="text" class="form-input" id="productSku" value="${product.sku}" onchange="app.saveProduct('${product.id}')">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Название</label>
+          <input type="text" class="form-input" id="productName" value="${product.name}" onchange="app.saveProduct('${product.id}')">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Цена (₽)</label>
+          <input type="number" class="form-input" id="productPrice" value="${product.price}" onchange="app.saveProduct('${product.id}')">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Штрихкод</label>
+          <input type="text" class="form-input" id="productBarcode" value="${product.barcode || ''}" onchange="app.saveProduct('${product.id}')">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Описание</label>
+          <textarea class="form-input" id="productDesc" rows="3" onchange="app.saveProduct('${product.id}')">${product.description || ''}</textarea>
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 16px;">
+          <button class="btn btn-primary" onclick="app.printProduct('${product.id}')">🖨️ Печать</button>
+          <button class="btn btn-secondary" onclick="app.router.navigate('/products')">Назад</button>
+        </div>
+      </div>
+    `);
+  }
+
+  async saveProduct(id) {
+    const product = await this.db.get('products', id);
+    if (!product) return;
     
-    content.innerHTML = `
+    product.sku = document.getElementById('productSku')?.value || product.sku;
+    product.name = document.getElementById('productName')?.value || product.name;
+    product.price = parseInt(document.getElementById('productPrice')?.value) || 0;
+    product.barcode = document.getElementById('productBarcode')?.value || '';
+    product.description = document.getElementById('productDesc')?.value || '';
+    
+    await this.db.put('products', product);
+    this.showToast('Сохранено', 'success');
+  }
+
+  async renderPrint() {
+    this.updateHeader('Печать');
+    const templates = await this.db.getAll('templates');
+    const products = await this.db.getAll('products');
+    const urlParams = new URLSearchParams(window.location.hash.split('?')[1] || '');
+    const selectedProduct = urlParams.get('product');
+
+    this.render(`
       <div class="page-header">
-        <h1>ИИ Модуль</h1>
+        <h1>Печать этикеток</h1>
       </div>
       
-      <div class="grid grid-2">
+      <div class="grid grid-2" style="gap: 24px;">
         <div class="card">
-          <h3>Обучение</h3>
-          <p>Обучите ИИ на ваших данных для автоматического заполнения этикеток</p>
+          <h3>1. Выберите шаблон</h3>
           <div class="form-group">
-            <label class="form-label">Тип данных</label>
-            <select class="form-input form-select" id="aiDataType">
-              <option value="products">Товары</option>
-              <option value="templates">Шаблоны</option>
-              <option value="descriptions">Описания</option>
+            <select class="form-input" id="printTemplate" onchange="app.updatePrintPreview()">
+              <option value="">-- Выберите шаблон --</option>
+              ${templates.map(t => `<option value="${t.id}">${t.name} (${t.width}×${t.height}мм)</option>`).join('')}
             </select>
           </div>
-          <button class="btn btn-primary" onclick="app.trainAI()">🚀 Обучить</button>
         </div>
         
         <div class="card">
-          <h3>Запрос к ИИ</h3>
-          <div class="ai-chat">
-            <div class="ai-messages" id="aiMessages">
-              <div class="ai-message">
-                <div class="message-content">Привет! Я могу помочь с созданием этикеток, подбором дизайна или заполнением данных. Просто спросите!</div>
-              </div>
-            </div>
-            <div class="ai-input">
-              <input type="text" class="form-input" id="aiInput" placeholder="Задайте вопрос...">
-              <button class="btn btn-primary" onclick="app.sendAI()">➤</button>
-            </div>
+          <h3>2. Выберите товар</h3>
+          <div class="form-group">
+            <select class="form-input" id="printProduct" onchange="app.updatePrintPreview()">
+              <option value="">-- Выберите товар --</option>
+              ${products.map(p => `<option value="${p.id}" ${selectedProduct === p.id ? 'selected' : ''}>${p.sku} - ${p.name}</option>`).join('')}
+            </select>
           </div>
+        </div>
+      </div>
+      
+      <div class="card" style="margin-top: 24px;">
+        <h3>3. Предпросмотр</h3>
+        <div class="print-preview" id="printPreview">
+          <p style="color: #666;">Выберите шаблон и товар</p>
+        </div>
+      </div>
+      
+      <div style="margin-top: 24px; display: flex; gap: 8px;">
+        <div class="form-group" style="width: 100px;">
+          <label class="form-label">Количество</label>
+          <input type="number" class="form-input" id="printQty" value="1" min="1" max="100">
+        </div>
+        <button class="btn btn-primary" style="align-self: flex-end;" onclick="app.doPrint()">🖨️ Печатать</button>
+      </div>
+    `);
+  }
+
+  async updatePrintPreview() {
+    const templateId = document.getElementById('printTemplate')?.value;
+    const productId = document.getElementById('printProduct')?.value;
+    
+    if (!templateId || !productId) {
+      document.getElementById('printPreview').innerHTML = '<p style="color: #666;">Выберите шаблон и товар</p>';
+      return;
+    }
+    
+    const template = await this.db.get('templates', templateId);
+    const product = await this.db.get('products', productId);
+    
+    if (!template || !product) return;
+    
+    // Replace placeholders
+    let content = JSON.stringify(template.elements);
+    content = content.replace(/\"Название\"/g, `"${product.name}"`);
+    content = content.replace(/\"Артикул: SKU001\"/g, `"Артикул: ${product.sku}"`);
+    content = content.replace(/\"100 ₽\"/g, `"${product.price} ₽"`);
+    
+    const elements = JSON.parse(content);
+    const previewEl = document.getElementById('printPreview');
+    previewEl.innerHTML = `<div class="label-preview" style="width: ${template.width * 3}px; height: ${template.height * 3}px;">
+      ${elements.map(el => `<div style="position: absolute; left: ${el.x}%; top: ${el.y}%; font-size: ${el.fontSize || 12}px; font-weight: ${el.fontWeight || 'normal'};">${el.content}</div>`).join('')}
+    </div>`;
+  }
+
+  async doPrint() {
+    const templateId = document.getElementById('printTemplate')?.value;
+    const productId = document.getElementById('printProduct')?.value;
+    const qty = parseInt(document.getElementById('printQty')?.value) || 1;
+    
+    if (!templateId || !productId) {
+      this.showToast('Выберите шаблон и товар', 'error');
+      return;
+    }
+    
+    // Record print job
+    await this.db.add('prints', {
+      templateId,
+      productId,
+      qty,
+      printedAt: new Date().toISOString()
+    });
+    
+    // Print
+    window.print();
+    this.showToast(`Отправлено на печать ${qty} этикеток`, 'success');
+  }
+
+  async renderAI() {
+    this.updateHeader('ИИ Модуль');
+    const hasOpenAI = await this.ai?.hasApiKey('openai');
+    const hasAnthropic = await this.ai?.hasApiKey('anthropic');
+    const hasGemini = await this.ai?.hasApiKey('gemini');
+
+    this.render(`
+      <div class="page-header">
+        <h1>ИИ Помощник</h1>
+      </div>
+      
+      <div class="card" style="margin-bottom: 24px;">
+        <h3>Настройка API ключей</h3>
+        <p style="color: var(--text-secondary); margin-bottom: 16px;">Введите свои API ключи для работы с ИИ</p>
+        
+        <div class="form-group">
+          <label class="form-label">OpenAI API Key</label>
+          <input type="password" class="form-input" id="openaiKey" placeholder="sk-..." value="" onchange="app.saveApiKey('openai')">
+          ${hasOpenAI ? '<span class="badge badge-success" style="margin-left: 8px;">Настроен</span>' : ''}
+        </div>
+        <div class="form-group">
+          <label class="form-label">Anthropic (Claude) API Key</label>
+          <input type="password" class="form-input" id="anthropicKey" placeholder="sk-ant-..." value="" onchange="app.saveApiKey('anthropic')">
+          ${hasAnthropic ? '<span class="badge badge-success" style="margin-left: 8px;">Настроен</span>' : ''}
+        </div>
+        <div class="form-group">
+          <label class="form-label">Google Gemini API Key</label>
+          <input type="password" class="form-input" id="geminiKey" placeholder="AI..." value="" onchange="app.saveApiKey('gemini')">
+          ${hasGemini ? '<span class="badge badge-success" style="margin-left: 8px;">Настроен</span>' : ''}
         </div>
       </div>
       
       <div class="card">
-        <h3>Обучающие данные (${aiData.length})</h3>
-        ${aiData.length === 0 ? '<p>Нет данных для обучения</p>' : `
-          <div class="ai-data-list">
-            ${aiData.slice(0, 10).map(d => `
-              <div class="ai-data-item">
-                <span class="badge badge-success">${d.type}</span>
-                ${d.content?.substring(0, 100)}...
-              </div>
-            `).join('')}
+        <h3>Чат с ИИ</h3>
+        <div class="ai-chat">
+          <div class="ai-messages" id="aiMessages">
+            <p style="color: var(--text-secondary);">Задайте вопрос о печати этикеток или товарах</p>
           </div>
-        `}
+          <div class="ai-input">
+            <input type="text" class="form-input" id="aiInput" placeholder="Введите сообщение..." onkeypress="if(event.key==='Enter')app.sendAI()">
+            <button class="btn btn-primary" onclick="app.sendAI()">Отправить</button>
+          </div>
+        </div>
       </div>
-    `;
-    
-    this.updateHeader('ИИ Модуль');
+    `);
   }
 
-  async trainAI() {
-    const type = document.getElementById('aiDataType')?.value;
-    const products = await this.db.getAll('products');
-    
-    for (const product of products) {
-      await this.db.add('aiData', {
-        type: 'products',
-        content: JSON.stringify(product),
-        timestamp: new Date().toISOString()
-      });
+  async saveApiKey(provider) {
+    const key = document.getElementById(provider + 'Key')?.value;
+    if (key) {
+      await this.ai.setApiKey(provider, key);
+      this.renderAI();
     }
-    
-    this.showToast('ИИ обучен на ' + products.length + ' товарах', 'success');
-    this.router.navigate('/ai', true);
   }
 
   async sendAI() {
     const input = document.getElementById('aiInput');
-    const message = input.value.trim();
+    const message = input?.value?.trim();
     if (!message) return;
-    
-    const messages = document.getElementById('aiMessages');
-    messages.innerHTML += `
-      <div class="ai-message user">
-        <div class="message-content">${message}</div>
-      </div>
-    `;
-    
+
+    const messagesEl = document.getElementById('aiMessages');
+    messagesEl.innerHTML += `<div class="ai-message user"><div class="message-content">${message}</div></div>`;
     input.value = '';
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    // Show loading
+    messagesEl.innerHTML += `<div class="ai-message"><div class="message-content"><div class="spinner"></div></div></div>`;
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    const response = await this.ai.sendMessage(message);
     
-    // Simulated AI response (replace with real API)
-    setTimeout(() => {
-      messages.innerHTML += `
-        <div class="ai-message">
-          <div class="message-content">Я получил ваш запрос: "${message}". Это демонстрация ИИ модуля. Подключите API (OpenAI, Claude) для реальной работы.</div>
-        </div>
-      `;
-      messages.scrollTop = messages.scrollHeight;
-    }, 500);
+    // Remove loading
+    messagesEl.querySelector('.spinner')?.closest('.ai-message')?.remove();
+    
+    if (response.error) {
+      messagesEl.innerHTML += `<div class="ai-message"><div class="message-content" style="color: #ff4757;">${response.error}</div></div>`;
+    } else {
+      messagesEl.innerHTML += `<div class="ai-message"><div class="message-content">${response.content}</div></div>`;
+    }
+    messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
   async renderParser() {
-    const content = document.getElementById('content');
-    
-    content.innerHTML = `
+    this.updateHeader('Парсинг');
+
+    this.render(`
       <div class="page-header">
-        <h1>Умный парсинг</h1>
-      </div>
-      
-      <div class="grid grid-2">
-        <div class="card">
-          <h3>Импорт из файла</h3>
-          <div class="form-group">
-            <label class="form-label">Файл (CSV, JSON, Excel)</label>
-            <input type="file" class="form-input" id="parserFile" accept=".csv,.json,.xlsx,.xls">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Разделитель (для CSV)</label>
-            <select class="form-input form-select" id="parserDelimiter">
-              <option value=",">Запятая (,)</option>
-              <option value=";">Точка с запятой (;)</option>
-              <option value="\t">Табуляция</option>
-            </select>
-          </div>
-          <button class="btn btn-primary" onclick="app.parseFile()">📥 Импорт</button>
-        </div>
-        
-        <div class="card">
-          <h3>Парсинг с сайта</h3>
-          <div class="form-group">
-            <label class="form-label">URL</label>
-            <input type="url" class="form-input" id="parserUrl" placeholder="https://...">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Селектор товара</label>
-            <input type="text" class="form-input" id="parserSelector" placeholder=".product, .item">
-          </div>
-          <button class="btn btn-primary" onclick="app.parseUrl()">🌐 Парсить</button>
-        </div>
+        <h1>Парсинг данных</h1>
       </div>
       
       <div class="card">
-        <h3>Результат парсинга</h3>
-        <div id="parserResult" class="parser-result">
-          <p class="empty-state">Данные появятся здесь</p>
+        <h3>Импорт из текста</h3>
+        <div class="form-group">
+          <label class="form-label">Вставьте текст с данными о товарах</label>
+          <textarea class="form-input" id="parseText" rows="10" placeholder="SKU001 Товар1 100&#10;SKU002 Товар2 200"></textarea>
         </div>
+        <button class="btn btn-primary" onclick="app.parseText()">📥 Парсить</button>
       </div>
-    `;
-    
-    this.updateHeader('Парсинг');
+      
+      <div class="card">
+        <h3>Импорт из файла</h3>
+        <input type="file" id="importFile" accept=".json,.csv,.txt" style="display: none;">
+        <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">📁 Выбрать файл</button>
+      </div>
+    `);
   }
 
-  async parseFile() {
-    const file = document.getElementById('parserFile')?.files[0];
-    if (!file) {
-      this.showToast('Выберите файл', 'error');
+  async parseText() {
+    const text = document.getElementById('parseText')?.value;
+    if (!text) return;
+
+    const result = await this.ai.parseData(text);
+    
+    if (result.error) {
+      this.showToast(result.error, 'error');
       return;
     }
-    
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const content = e.target.result;
-      let data = [];
-      
-      if (file.name.endsWith('.json')) {
-        data = JSON.parse(content);
-      } else if (file.name.endsWith('.csv')) {
-        const delimiter = document.getElementById('parserDelimiter')?.value || ',';
-        const lines = content.split('\n');
-        const headers = lines[0].split(delimiter).map(h => h.trim());
-        
-        for (let i = 1; i < lines.length; i++) {
-          if (!lines[i].trim()) continue;
-          const values = lines[i].split(delimiter);
-          const obj = {};
-          headers.forEach((h, j) => obj[h] = values[j]?.trim());
-          data.push(obj);
-        }
+
+    if (result.data && Array.isArray(result.data)) {
+      for (const item of result.data) {
+        await this.db.add('products', {
+          id: 'prod_' + Date.now() + Math.random(),
+          sku: item.sku || 'SKU' + Date.now().toString().slice(-4),
+          name: item.name || 'Товар',
+          price: parseInt(item.price) || 0,
+          barcode: item.barcode || '',
+          description: item.description || '',
+          createdAt: new Date().toISOString()
+        });
       }
-      
-      this.showParseResult(data);
-    };
-    reader.readAsText(file);
-  }
-
-  async parseUrl() {
-    const url = document.getElementById('parserUrl')?.value;
-    if (!url) {
-      this.showToast('Введите URL', 'error');
-      return;
+      this.showToast(`Добавлено ${result.data.length} товаров`, 'success');
+      this.router.navigate('/products');
+    } else {
+      this.showToast('Не удалось распарсить данные', 'error');
     }
-    
-    this.showToast('Парсинг URL требует серверной части (CORS)', 'error');
   }
 
-  showParseResult(data) {
-    const result = document.getElementById('parserResult');
-    result.innerHTML = `
-      <p>Найдено ${data.length} записей</p>
-      <table class="data-table">
-        <thead>
-          <tr>${Object.keys(data[0] || {}).map(k => `<th>${k}</th>`).join('')}</tr>
-        </thead>
-        <tbody>
-          ${data.slice(0, 5).map(row => `
-            <tr>${Object.values(row).map(v => `<td>${v}</td>`).join('')}</tr>
-          `).join('')}
-        </tbody>
-      </table>
-      <button class="btn btn-primary" onclick="app.importParsedData(${JSON.stringify(data).replace(/"/g, '&quot;')})">Импортировать в базу</button>
-    `;
+  showImportModal() {
+    document.getElementById('importFile').click();
   }
 
-  async importParsedData(data) {
-    const items = typeof data === 'string' ? JSON.parse(data) : data;
-    
-    for (const item of items) {
-      await this.db.add('products', {
-        sku: item.sku || item.артикул || item.article || '',
-        name: item.name || item.название || item.title || '',
-        barcode: item.barcode || item.штрихкод || '',
-        price: parseFloat(item.price || item.цена || 0),
-        description: item.description || item.описание || ''
-      });
-    }
-    
-    this.showToast('Импортировано ' + items.length + ' товаров', 'success');
-    this.router.navigate('/products');
+  async importData() {
+    this.router.navigate('/parser');
   }
 
   async renderMap() {
-    const content = document.getElementById('content');
-    const locations = await this.db.getAll('locations');
-    
-    content.innerHTML = `
-      <div class="page-header">
-        <h1>Карта</h1>
-        <button class="btn btn-primary" onclick="app.showLocationModal()">➕ Добавить точку</button>
-      </div>
-      
-      <div class="card">
-        <div class="map-container" id="mapContainer">
-          <div class="map-placeholder">
-            <p>Карта загружается...</p>
-            <p>Подключите Leaflet для отображения карты</p>
-          </div>
-        </div>
-      </div>
-      
-      <div class="card">
-        <h3>Точки (${locations.length})</h3>
-        ${locations.length === 0 ? '<p>Нет точек</p>' : `
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Название</th>
-                <th>Тип</th>
-                <th>Координаты</th>
-                <th>Действия</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${locations.map(l => `
-                <tr>
-                  <td>${l.name}</td>
-                  <td><span class="badge badge-success">${l.type}</span></td>
-                  <td>${l.lat?.toFixed(4)}, ${l.lng?.toFixed(4)}</td>
-                  <td>
-                    <button class="btn btn-secondary btn-icon" onclick="app.deleteLocation(${l.id})">🗑️</button>
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        `}
-      </div>
-    `;
-    
     this.updateHeader('Карта');
-  }
 
-  showLocationModal() {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay active';
-    modal.innerHTML = `
-      <div class="modal">
-        <div class="modal-header">
-          <h2>Добавить точку</h2>
-          <button class="btn btn-icon" onclick="this.closest('.modal-overlay').remove()">✕</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">Название</label>
-            <input type="text" class="form-input" id="locationName">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Тип</label>
-            <select class="form-input form-select" id="locationType">
-              <option value="warehouse">Склад</option>
-              <option value="store">Магазин</option>
-              <option value="office">Офис</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Широта</label>
-            <input type="number" step="any" class="form-input" id="locationLat">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Долгота</label>
-            <input type="number" step="any" class="form-input" id="locationLng">
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Отмена</button>
-          <button class="btn btn-primary" onclick="app.saveLocation()">Сохранить</button>
+    this.render(`
+      <div class="page-header">
+        <h1>Карта складов</h1>
+      </div>
+      
+      <div class="card">
+        <div class="map-container" id="map">
+          <p style="text-align: center; padding: 40px; color: var(--text-secondary);">Загрузка карты...</p>
         </div>
       </div>
-    `;
-    document.body.appendChild(modal);
-  }
+    `);
 
-  async saveLocation() {
-    const location = {
-      name: document.getElementById('locationName')?.value,
-      type: document.getElementById('locationType')?.value,
-      lat: parseFloat(document.getElementById('locationLat')?.value),
-      lng: parseFloat(document.getElementById('locationLng')?.value)
-    };
-    
-    await this.db.add('locations', location);
-    this.showToast('Точка добавлена', 'success');
-    document.querySelector('.modal-overlay')?.remove();
-    this.router.navigate('/map', true);
-  }
-
-  async deleteLocation(id) {
-    if (confirm('Удалить точку?')) {
-      await this.db.delete('locations', id);
-      this.router.navigate('/map', true);
-    }
+    // Initialize map when Leaflet loads
+    setTimeout(() => {
+      if (typeof L !== 'undefined') {
+        const map = L.map('map').setView([55.75, 37.62], 10);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap'
+        }).addTo(map);
+        this.showToast('Карта загружена', 'success');
+      }
+    }, 1000);
   }
 
   async renderSettings() {
-    const content = document.getElementById('content');
-    
-    content.innerHTML = `
+    this.updateHeader('Настройки');
+    const settings = await this.db.getAll('settings');
+
+    this.render(`
       <div class="page-header">
         <h1>Настройки</h1>
       </div>
       
-      <div class="grid grid-2">
-        <div class="card">
-          <h3>Общие</h3>
-          <div class="form-group">
-            <label class="form-label">Язык</label>
-            <select class="form-input form-select" id="settingLang">
-              <option value="ru">Русский</option>
-              <option value="en">English</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Тема</label>
-            <select class="form-input form-select" id="settingTheme">
-              <option value="dark">Тёмная</option>
-              <option value="light">Светлая</option>
-            </select>
-          </div>
+      <div class="card">
+        <h3>Приложение</h3>
+        <div class="form-group">
+          <label class="form-label">Версия</label>
+          <input type="text" class="form-input" value="1.0.1" disabled>
         </div>
-        
-        <div class="card">
-          <h3>Данные</h3>
-          <button class="btn btn-secondary" onclick="app.exportData()">📤 Экспорт базы</button>
-          <button class="btn btn-secondary" onclick="app.importData()">📥 Импорт базы</button>
-          <input type="file" id="importFile" accept=".json" style="display: none;">
+        <div class="form-group">
+          <label class="form-label">Режим</label>
+          <input type="text" class="form-input" value="${window.electronAPI ? 'Electron' : (window.matchMedia('(display-mode: standalone)').matches ? 'PWA' : 'Web')}" disabled>
         </div>
       </div>
-    `;
-    
-    this.updateHeader('Настройки');
+      
+      <div class="card">
+        <h3>Данные</h3>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button class="btn btn-secondary" onclick="app.exportData()">📤 Экспорт</button>
+          <button class="btn btn-secondary" onclick="app.clearData()">🗑️ Очистить</button>
+        </div>
+      </div>
+      
+      <div class="card">
+        <h3>О приложении</h3>
+        <p style="color: var(--text-secondary);">
+          <strong>Sticks</strong> - система печати этикеток с поддержкой ИИ.<br>
+          С��зд��но с ❤️
+        </p>
+      </div>
+    `);
   }
 
   async exportData() {
-    const data = await this.db.exportAll();
+    const data = {
+      templates: await this.db.getAll('templates'),
+      products: await this.db.getAll('products'),
+      prints: await this.db.getAll('prints'),
+      settings: await this.db.getAll('settings'),
+      exportedAt: new Date().toISOString()
+    };
+
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'sticks-backup-' + new Date().toISOString().split('T')[0] + '.json';
+    a.download = 'sticks-export-' + Date.now() + '.json';
     a.click();
+    URL.revokeObjectURL(url);
+    
     this.showToast('Данные экспортированы', 'success');
   }
 
-  importData() {
-    document.getElementById('importFile')?.click();
+  async clearData() {
+    if (confirm('Очистить все данные? Это действие необратимо.')) {
+      await this.db.clear();
+      this.showToast('Данные очищены', 'success');
+      this.router.navigate('/');
+    }
   }
 
-  render404() {
-    document.getElementById('content').innerHTML = `
+  renderNotFound() {
+    this.updateHeader('404');
+    this.render(`
       <div class="empty-state">
         <h1>404</h1>
         <p>Страница не найдена</p>
-        <button class="btn btn-primary" onclick="app.router.navigate('/')">На главную</button>
+        <button class="btn btn-primary" onclick="window.location.hash = '#/'" style="margin-top: 16px;">На главную</button>
       </div>
-    `;
-  }
-
-  updateHeader(title) {
-    const headerTitle = document.querySelector('.header-title');
-    if (headerTitle) headerTitle.textContent = title;
+    `);
   }
 
   showToast(message, type = 'info') {
-    let container = document.querySelector('.toast-container');
-    if (!container) {
-      container = document.createElement('div');
-      container.className = 'toast-container';
-      document.body.appendChild(container);
-    }
+    const container = document.querySelector('.toast-container');
+    if (!container) return;
     
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
@@ -990,6 +776,8 @@ class App {
   }
 }
 
-// Initialize app
-const app = new App();
-document.addEventListener('DOMContentLoaded', () => app.init());
+// Global app instance
+window.app = new App();
+
+// Initialize on DOM ready
+document.addEventListener('DOMContentLoaded', () => window.app.init());
