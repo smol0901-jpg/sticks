@@ -1,0 +1,58 @@
+{
+  "name": "sticks",
+  "productName": "Sticks",
+  "version": "1.0.0",
+  "description": "Универсальная система печати этикеток с ИИ",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.sticks.app",
+    "productName": "Sticks",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "index.html",
+      "css/",
+      "js/",
+      "assets/",
+      "manifest.json",
+      "sw.js"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icons/icon-512.png"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "assets/icons/icon-512.png"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "icon": "assets/icons/icon-512.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "keywords": ["label", "print", "design", "ai", "electron"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  }
+}
