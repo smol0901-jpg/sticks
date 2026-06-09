@@ -1,12 +1,10 @@
-// Sticks - Router Module
+// Sticks - Router Module (Hash-based for GitHub Pages)
 class Router {
   constructor() {
     this.routes = [];
     this.currentRoute = null;
     this.beforeHooks = [];
     this.afterHooks = [];
-    
-    window.addEventListener('popstate', () => this.handleRoute());
   }
 
   add(path, handler, name) {
@@ -25,7 +23,7 @@ class Router {
   }
 
   navigate(path, replace = false) {
-    const url = path.startsWith('/') ? path : '/' + path;
+    const url = path.startsWith('#') ? path : '#' + path;
     if (replace) {
       history.replaceState(null, '', url);
     } else {
@@ -35,9 +33,8 @@ class Router {
   }
 
   getPath() {
-    const path = location.pathname;
-    const hash = location.hash.slice(1);
-    return hash || path || '/';
+    const hash = window.location.hash.slice(1);
+    return hash || '/';
   }
 
   getParams() {
@@ -93,43 +90,57 @@ class Router {
       this.currentRoute = match.route;
       await match.route.handler(match.params);
     } else {
-      // 404 handler
       const notFound = this.routes.find(r => r.path === '*');
       if (notFound) {
         await notFound.handler({});
       }
     }
     
-    // Run after hooks
     for (const hook of this.afterHooks) {
       await hook(path, match);
     }
     
-    // Update active nav
     this.updateActiveNav();
+    this.closeSidebar();
   }
 
   updateActiveNav() {
+    const currentPath = this.getPath();
     document.querySelectorAll('.nav-item').forEach(item => {
       item.classList.remove('active');
       const href = item.getAttribute('href');
-      if (href && this.getPath().startsWith(href.replace('#', ''))) {
-        item.classList.add('active');
+      if (href) {
+        const navPath = href.replace('#', '');
+        if (currentPath === navPath || (navPath !== '/' && currentPath.startsWith(navPath))) {
+          item.classList.add('active');
+        }
       }
     });
   }
 
+  closeSidebar() {
+    document.getElementById('sidebar')?.classList.remove('open');
+  }
+
   init() {
+    // Handle hash changes
+    window.addEventListener('hashchange', () => this.handleRoute());
+    
     // Handle clicks on links
     document.addEventListener('click', (e) => {
       const link = e.target.closest('a[data-link]');
       if (link) {
         e.preventDefault();
-        this.navigate(link.getAttribute('href'));
+        this.navigate(link.getAttribute('href').replace('#', ''));
       }
     });
     
-    this.handleRoute();
+    // Initial route
+    if (!window.location.hash) {
+      this.navigate('/', true);
+    } else {
+      this.handleRoute();
+    }
   }
 }
 
