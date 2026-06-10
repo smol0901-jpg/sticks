@@ -1,8 +1,8 @@
-// Sticks - IndexedDB Database Module
+// Sticks - Database Module (IndexedDB wrapper)
 const DB_NAME = 'sticks_db';
 const DB_VERSION = 1;
 
-class SticksDB {
+class Database {
   constructor() {
     this.db = null;
   }
@@ -11,167 +11,165 @@ class SticksDB {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
       
-      request.onerror = () => reject(request.error);
+      request.onerror = () => {
+        console.error('DB open error:', request.error);
+        reject(request.error);
+      };
       request.onsuccess = () => {
         this.db = request.result;
+        console.log('DB opened');
         resolve(this.db);
       };
       
       request.onupgradeneeded = (event) => {
         const db = event.target.result;
+        console.log('DB upgrade needed');
         
         // Templates store
         if (!db.objectStoreNames.contains('templates')) {
-          const templates = db.createObjectStore('templates', { keyPath: 'id', autoIncrement: true });
-          templates.createIndex('name', 'name', { unique: false });
-          templates.createIndex('category', 'category', { unique: false });
+          db.createObjectStore('templates', { keyPath: 'id' });
         }
         
         // Products store
         if (!db.objectStoreNames.contains('products')) {
-          const products = db.createObjectStore('products', { keyPath: 'id', autoIncrement: true });
-          products.createIndex('sku', 'sku', { unique: true });
-          products.createIndex('barcode', 'barcode', { unique: false });
+          db.createObjectStore('products', { keyPath: 'id' });
         }
         
         // Print jobs store
-        if (!db.objectStoreNames.contains('printJobs')) {
-          const printJobs = db.createObjectStore('printJobs', { keyPath: 'id', autoIncrement: true });
-          printJobs.createIndex('date', 'date', { unique: false });
-          printJobs.createIndex('status', 'status', { unique: false });
-        }
-        
-        // AI training data store
-        if (!db.objectStoreNames.contains('aiData')) {
-          const aiData = db.createObjectStore('aiData', { keyPath: 'id', autoIncrement: true });
-          aiData.createIndex('type', 'type', { unique: false });
-          aiData.createIndex('timestamp', 'timestamp', { unique: false });
-        }
-        
-        // Locations store (for map)
-        if (!db.objectStoreNames.contains('locations')) {
-          const locations = db.createObjectStore('locations', { keyPath: 'id', autoIncrement: true });
-          locations.createIndex('type', 'type', { unique: false });
+        if (!db.objectStoreNames.contains('prints')) {
+          db.createObjectStore('prints', { keyPath: 'id' });
         }
         
         // Settings store
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings', { keyPath: 'key' });
         }
+        
+        // AI data store
+        if (!db.objectStoreNames.contains('aiData')) {
+          db.createObjectStore('aiData', { keyPath: 'id' });
+        }
       };
     });
   }
 
-  // Generic CRUD
-  async getAll(storeName) {
+  // Add record
+  async add(store, data) {
     return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(storeName, 'readonly');
-      const store = tx.objectStore(storeName);
-      const request = store.getAll();
+      const tx = this.db.transaction(store, 'readwrite');
+      const objStore = tx.objectStore(store);
+      const request = objStore.add(data);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
   }
 
-  async get(storeName, id) {
+  // Put record (add or update)
+  async put(store, data) {
     return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(storeName, 'readonly');
-      const store = tx.objectStore(storeName);
-      const request = store.get(id);
+      const tx = this.db.transaction(store, 'readwrite');
+      const objStore = tx.objectStore(store);
+      const request = objStore.put(data);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
   }
 
-  async add(storeName, data) {
+  // Get record by key
+  async get(store, key) {
     return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(storeName, 'readwrite');
-      const store = tx.objectStore(storeName);
-      const request = store.add(data);
+      const tx = this.db.transaction(store, 'readonly');
+      const objStore = tx.objectStore(store);
+      const request = objStore.get(key);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
   }
 
-  async put(storeName, data) {
+  // Get all records
+  async getAll(store) {
     return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(storeName, 'readwrite');
-      const store = tx.objectStore(storeName);
-      const request = store.put(data);
-      request.onsuccess = () => resolve(request.result);
+      const tx = this.db.transaction(store, 'readonly');
+      const objStore = tx.objectStore(store);
+      const request = objStore.getAll();
+      request.onsuccess = () => resolve(request.result || []);
       request.onerror = () => reject(request.error);
     });
   }
 
-  async delete(storeName, id) {
+  // Delete record
+  async delete(store, key) {
     return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(storeName, 'readwrite');
-      const store = tx.objectStore(storeName);
-      const request = store.delete(id);
-      request.onsuccess = () => resolve();
+      const tx = this.db.transaction(store, 'readwrite');
+      const objStore = tx.objectStore(store);
+      const request = objStore.delete(key);
+      request.onsuccess = () => resolve(true);
       request.onerror = () => reject(request.error);
     });
   }
 
-  async query(storeName, indexName, value) {
+  // Clear store
+  async clearStore(store) {
     return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(storeName, 'readonly');
-      const store = tx.objectStore(storeName);
-      const index = store.index(indexName);
-      const request = index.getAll(value);
-      request.onsuccess = () => resolve(request.result);
+      const tx = this.db.transaction(store, 'readwrite');
+      const objStore = tx.objectStore(store);
+      const request = objStore.clear();
+      request.onsuccess = () => resolve(true);
       request.onerror = () => reject(request.error);
     });
   }
 
-  // Settings helpers
+  // Clear all stores
+  async clear() {
+    await this.clearStore('templates');
+    await this.clearStore('products');
+    await this.clearStore('prints');
+    await this.clearStore('settings');
+    await this.clearStore('aiData');
+  }
+
+  // Count records
+  async count(store) {
+    const items = await this.getAll(store);
+    return items.length;
+  }
+
+  // Get setting
   async getSetting(key, defaultValue = null) {
-    const result = await this.get('settings', key);
-    return result ? result.value : defaultValue;
+    const setting = await this.get('settings', key);
+    return setting ? setting.value : defaultValue;
   }
 
+  // Set setting
   async setSetting(key, value) {
-    return this.put('settings', { key, value });
+    await this.put('settings', { key, value });
   }
 
-  // Export/Import
-  async exportAll() {
-    const data = {
-      templates: await this.getAll('templates'),
-      products: await this.getAll('products'),
-      printJobs: await this.getAll('printJobs'),
-      aiData: await this.getAll('aiData'),
-      locations: await this.getAll('locations'),
-      settings: await this.getAll('settings'),
-      exportDate: new Date().toISOString()
-    };
-    return data;
-  }
-
+  // Import all data
   async importAll(data) {
-    const tx = this.db.transaction(['templates', 'products', 'printJobs', 'aiData', 'locations', 'settings'], 'readwrite');
-    
-    for (const template of data.templates || []) {
-      tx.objectStore('templates').put(template);
+    if (data.templates) {
+      for (const item of data.templates) {
+        await this.put('templates', item);
+      }
     }
-    for (const product of data.products || []) {
-      tx.objectStore('products').put(product);
+    if (data.products) {
+      for (const item of data.products) {
+        await this.put('products', item);
+      }
     }
-    for (const job of data.printJobs || []) {
-      tx.objectStore('printJobs').put(job);
+    if (data.prints) {
+      for (const item of data.prints) {
+        await this.put('prints', item);
+      }
     }
-    for (const item of data.aiData || []) {
-      tx.objectStore('aiData').put(item);
+    if (data.settings) {
+      for (const item of data.settings) {
+        await this.put('settings', item);
+      }
     }
-    for (const loc of data.locations || []) {
-      tx.objectStore('locations').put(loc);
-    }
-    
-    return new Promise((resolve, reject) => {
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
   }
 }
 
-window.SticksDB = SticksDB;
+// Alias for compatibility
+window.SticksDB = Database;
+window.Database = Database;
