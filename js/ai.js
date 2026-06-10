@@ -36,19 +36,20 @@ class AIModule {
   }
 
   async init() {
-    // Load saved settings
-    const settings = await app.db.getSetting('aiSettings', {});
-    if (settings.provider) this.currentProvider = settings.provider;
-    if (settings.systemPrompt) this.systemPrompt = settings.systemPrompt;
+    console.log('AI Module init');
   }
 
   async setApiKey(provider, key) {
-    await app.db.setSetting(`ai_${provider}_key`, key);
-    this.showToast(`API ключ для ${this.providers[provider].name} сохранён`, 'success');
+    if (window.app && window.app.db) {
+      await window.app.db.setSetting(`ai_${provider}_key`, key);
+    }
   }
 
   async getApiKey(provider) {
-    return await app.db.getSetting(`ai_${provider}_key`, '');
+    if (window.app && window.app.db) {
+      return await window.app.db.getSetting(`ai_${provider}_key`, '');
+    }
+    return '';
   }
 
   async hasApiKey(provider) {
@@ -64,8 +65,8 @@ class AIModule {
       return { error: 'API ключ не настроен. Перейдите в Настройки → ИИ для настройки.' };
     }
 
-    // Add user message to conversation
     this.conversation.push({ role: 'user', content: message });
+
 
     try {
       let response;
@@ -85,22 +86,22 @@ class AIModule {
       }
 
       if (response.error) {
-        this.conversation.pop(); // Remove failed message
+        this.conversation.pop();
         return response;
       }
 
-      // Add assistant response
       this.conversation.push({ role: 'assistant', content: response.content });
       
-      // Save to training data
-      await app.db.add('aiData', {
-        type: 'conversation',
-        input: message,
-        output: response.content,
-        provider,
-        timestamp: new Date().toISOString()
-      });
-
+      if (window.app && window.app.db) {
+        await window.app.db.add('aiData', {
+          id: 'ai_' + Date.now(),
+          type: 'conversation',
+          input: message,
+          output: response.content,
+          provider,
+          timestamp: new Date().toISOString()
+        });
+      }
 
       return response;
     } catch (error) {
@@ -111,7 +112,7 @@ class AIModule {
 
   async callOpenAI(message, context) {
     const apiKey = await this.getApiKey('openai');
-    const model = await app.db.getSetting('ai_openai_model', 'gpt-4o-mini');
+    const model = 'gpt-4o-mini';
     
     const messages = [
       { role: 'system', content: this.systemPrompt },
@@ -144,7 +145,7 @@ class AIModule {
 
   async callAnthropic(message, context) {
     const apiKey = await this.getApiKey('anthropic');
-    const model = await app.db.getSetting('ai_anthropic_model', 'claude-3-haiku-20240307');
+    const model = 'claude-3-haiku-20240307';
     
     const messages = [
       ...this.conversation.slice(-10).map(m => ({
@@ -180,7 +181,7 @@ class AIModule {
 
   async callGemini(message, context) {
     const apiKey = await this.getApiKey('gemini');
-    const model = await app.db.getSetting('ai_gemini_model', 'gemini-1.5-flash');
+    const model = 'gemini-1.5-flash';
     
     const contents = this.conversation.slice(-10).map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
@@ -210,7 +211,6 @@ class AIModule {
     return { content: data.candidates[0].content.parts[0].text };
   }
 
-  // Generate label design
   async generateLabelDesign(product, style = 'modern') {
     const prompt = `Создай дизайн этикетки для товара: ${product.name}
 Артикул: ${product.sku}
@@ -219,13 +219,11 @@ class AIModule {
 
 Опиши структуру этикетки: какие элементы нужны, их расположение, цвета, шрифты. Ответь в JSON формате:
 {"elements": [{"type": "text|barcode|qrcode|image|rect", "content": "...", "x": 0, "y": 0, "width": 100, "height": 50, "style": {...}}]}`;
-
     const result = await this.sendMessage(prompt);
     
     if (result.error) return result;
 
     try {
-      // Extract JSON from response
       const jsonMatch = result.content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         return { design: JSON.parse(jsonMatch[0]) };
@@ -236,18 +234,15 @@ class AIModule {
     }
   }
 
-  // Generate product description
   async generateDescription(product) {
     const prompt = `Создай краткое описание для товара: ${product.name}
 Артикул: ${product.sku}
 Цена: ${product.price} руб.
 
-Опиши товар в 2-3 предложениях для этикетки.`;
-
+Опиш�� товар в 2-3 предложениях для этикетки.`;
     return this.sendMessage(prompt);
   }
 
-  // Parse unstructured data
   async parseData(text, format = 'auto') {
     const prompt = `Распарси следующий текст и извлеки данные о товарах. 
 Формат: ${format}
@@ -271,29 +266,17 @@ ${text}
     }
   }
 
-  // Suggest label improvements
   async suggestImprovements(template) {
     const prompt = `Проанализируй шаблон этикетки и предложи улучшения:
 ${JSON.stringify(template)}
 
 Ответь списком конкретных улучшений.`;
-
-
     return this.sendMessage(prompt);
   }
 
   clearConversation() {
     this.conversation = [];
   }
-
-  showToast(message, type = 'info') {
-    if (typeof app !== 'undefined' && app.showToast) {
-      app.showToast(message, type);
-    } else {
-      console.log(message);
-    }
-  }
 }
 
-// Global instance
 window.aiModule = new AIModule();
