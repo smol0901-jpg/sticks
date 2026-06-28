@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NEURAL LABEL SYSTEM HACCP PRO | NEURAL_ARCHITECT_PREMIUM++</title>
+<title>NEURAL LABEL SYSTEM HACCP PRO | ВЛАВАШЕ ФУД КОМПАНИ</title>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
@@ -120,13 +120,63 @@ main{display:flex;flex:1;overflow:hidden;position:relative;}
 .drag-over{border:2px dashed var(--accent);background:rgba(59,130,246,0.1);}
 .drag-handle{cursor:grab;color:var(--muted);padding:0 4px;font-size:14px;user-select:none;}
 .drag-handle:hover{color:var(--text);}
-@media print{
-  @page{margin:0;}
-  body *{visibility:hidden;}
-  #printArea,#printArea *{visibility:visible;}
-  #printArea{position:absolute;left:0;top:0;width:100%;background:white;}
-  .print-single{page-break-after:always;}
+.data-path-info{background:rgba(16,185,129,0.1);border-left:3px solid var(--success);padding:8px;border-radius:4px;font-size:11px;margin:6px 0;word-wrap:break-word;}
+.data-path-info .path{font-family:monospace;color:var(--accent);}
+
+/* ============ ПЕЧАТЬ — DATAMAX / ЛЮБОЙ ПРИНТЕР ЭТИКЕТОК ============
+   Размер @page задаётся динамически через JS перед window.print()
+   НЕ задаём size здесь — иначе будет конфликт и двойная этикетка
+   ================================================================= */
+@media print {
+    /* Скрываем всё кроме зоны печати */
+    body > * { visibility: hidden !important; }
+    #printArea { visibility: visible !important; }
+    #printArea * { visibility: visible !important; }
+
+    /* Контейнер печати — строго без лишних отступов и размеров */
+    #printArea {
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        /* НЕ задаём width/height/flex здесь — JS устанавливает под конкретный режим */
+    }
+
+    /* Одна этикетка — занимает ровно один стикер */
+    .print-single {
+        display: block !important;
+        margin: 0 !important;
+        padding: 2mm !important;
+        border: none !important;
+        box-sizing: border-box !important;
+        background: white !important;
+        overflow: hidden !important;
+        box-shadow: none !important;
+        /* page-break НЕ нужен — это единственный элемент на странице */
+        page-break-after: avoid !important;
+        page-break-inside: avoid !important;
+        break-after: avoid !important;
+        break-inside: avoid !important;
+    }
+
+    /* Пакетная печать — сетка этикеток */
+    .batch-label {
+        display: block !important;
+        margin: 0 !important;
+        padding: 2mm !important;
+        border: 0.5px solid #999 !important;
+        box-sizing: border-box !important;
+        background: white !important;
+        overflow: hidden !important;
+        box-shadow: none !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
 }
+/* ============================================================= */
+
 .print-single{background:white;color:black;padding:2mm;display:flex;flex-direction:column;font-size:9px;}
 .hidden{display:none !important;}
 .toast{position:fixed;bottom:20px;right:20px;background:var(--success);color:white;padding:10px 20px;border-radius:6px;font-weight:600;z-index:2000;transform:translateY(100px);opacity:0;transition:all 0.3s;font-size:13px;}
@@ -229,6 +279,7 @@ main{display:flex;flex:1;overflow:hidden;position:relative;}
           <input type="number" id="printWidth" placeholder="Ширина мм" value="90" style="width:60px;" onchange="renderPreview()">
           <input type="number" id="printHeight" placeholder="Высота мм" value="60" style="width:60px;" onchange="renderPreview()">
           <button class="btn btn-success" onclick="printLabels()">🖨️ ПЕЧАТЬ</button>
+          <button class="btn btn-warning" onclick="printLabelsForDatamax()" style="background:#f59e0b;color:white;border:none;padding:5px 10px;border-radius:3px;font-size:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px;" title="Печать строго по размеру стикера — одна этикетка на один стикер">🖨️ Datamax 1→1</button>
           <span class="time-auto-label"><span class="live-dot"></span> Live</span>
         </div>
         <div class="preview-container" id="previewContainer"></div>
@@ -298,6 +349,26 @@ main{display:flex;flex:1;overflow:hidden;position:relative;}
         <h2 style="color:var(--accent);margin-bottom:16px;">⚙️ Настройки системы</h2>
         
         <div style="background:var(--panel);padding:16px;border-radius:8px;margin-bottom:12px;border:1px solid var(--border);">
+          <h3 style="color:var(--accent);margin-bottom:8px;">📂 Управление базой данных</h3>
+          <div class="data-path-info" id="dataPathInfo">
+            📁 Текущий путь: <span class="path" id="currentDataPath">-- не задан --</span>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <button class="btn btn-accent" onclick="openDatabaseFile()">📂 Выбрать файл БД</button>
+            <button class="btn btn-accent" onclick="openDatabaseFolder()">📁 Выбрать папку БД</button>
+            <button class="btn btn-ghost" onclick="resetDataPath()">🔄 Сбросить путь</button>
+            <button class="btn btn-success" onclick="reloadDatabase()">🔄 Перезагрузить БД</button>
+          </div>
+          <div style="margin-top:8px;">
+            <label style="font-size:10px;color:var(--muted);">Или укажите URL для загрузки:</label>
+            <div style="display:flex;gap:6px;margin-top:4px;">
+              <input type="url" id="dataURLInput" placeholder="https://example.com/data.json" style="flex:1;background:var(--bg);border:1px solid var(--border);color:white;padding:8px;border-radius:4px;font-size:12px;">
+              <button class="btn btn-accent" onclick="loadDataFromURL()">🌐 Загрузить</button>
+            </div>
+          </div>
+        </div>
+        
+        <div style="background:var(--panel);padding:16px;border-radius:8px;margin-bottom:12px;border:1px solid var(--border);">
           <h3 style="color:var(--accent);margin-bottom:8px;">🎨 Цветовая схема</h3>
           <div class="color-picker">
             <div class="color-swatch active" style="background:#0f172a;" data-theme="dark" onclick="setTheme('dark')" title="Темная"></div>
@@ -340,6 +411,25 @@ main{display:flex;flex:1;overflow:hidden;position:relative;}
           <h3 style="color:var(--accent);margin-bottom:8px;">🔧 Восстановление шаблонов</h3>
           <p style="font-size:11px;color:var(--muted);margin-bottom:8px;">Если шаблоны слетели, восстановите системные:</p>
           <button class="btn btn-accent" onclick="restoreSystemTemplates()">🔄 Восстановить системные шаблоны</button>
+        </div>
+        
+        <div style="background:var(--panel);padding:16px;border-radius:8px;margin-bottom:12px;border:1px solid var(--border);">
+          <h3 style="color:var(--accent);margin-bottom:8px;">📊 Статистика системы</h3>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+            <div style="text-align:center;padding:10px;background:var(--bg);border-radius:6px;">
+              <div style="font-size:20px;font-weight:bold;color:var(--accent);" id="statTotal">0</div>
+              <div style="font-size:10px;color:var(--muted);">Всего продуктов</div>
+            </div>
+            <div style="text-align:center;padding:10px;background:var(--bg);border-radius:6px;">
+              <div style="font-size:20px;font-weight:bold;color:var(--success);" id="statFresh">0</div>
+              <div style="font-size:10px;color:var(--muted);">Свежие</div>
+            </div>
+            <div style="text-align:center;padding:10px;background:var(--bg);border-radius:6px;">
+              <div style="font-size:20px;font-weight:bold;color:var(--danger);" id="statExpired">0</div>
+              <div style="font-size:10px;color:var(--muted);">Просрочено</div>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-ghost" onclick="updateStats()" style="margin-top:8px;width:100%;">🔄 Обновить статистику</button>
         </div>
       </div>
     </div>
@@ -419,8 +509,8 @@ const SYSTEM_TEMPLATES = [
       {id:5,type:'grid2',col1Label:'Партия:',col1Value:'{batch}',col2Label:'',col2Value:'',fontSize:10},
       {id:6,type:'text',label:'⚠ АЛЛЕРГЕНЫ:',value:'{allergens}',fontSize:10,isBold:true,color:'#d32f2f',condition:'allergens'},
       {id:7,type:'divider'},
-      {id:8,type:'qr',qrData:'auto',size:55},
-      {id:9,type:'text',label:'',value:'ООО «NEURAL_ARCHITECT_PREMIUM++» | ХАССП',fontSize:7,isBold:false,align:'center'}
+      {id:8,type:'qr',qrData:'auto',size:60},
+      {id:9,type:'text',label:'',value:'ООО «ВЛАВАШЕ ФУД КОМПАНИ» | ХАССП',fontSize:7,isBold:false,align:'center'}
     ]
   },
   {
@@ -429,8 +519,8 @@ const SYSTEM_TEMPLATES = [
       {id:1,type:'text',label:'',value:'{name}',fontSize:12,isBold:true,align:'center'},
       {id:2,type:'grid2',col1Label:'Вск:',col1Value:'{openDate}',col2Label:'До:',col2Value:'{expiry}',fontSize:9},
       {id:3,type:'grid2',col1Label:'Хран:',col1Value:'{temp}',col2Label:'Кто:',col2Value:'{openedBy}',fontSize:9},
-      {id:4,type:'qr',qrData:'auto',size:38},
-      {id:5,type:'text',label:'',value:'@NAP',fontSize:6,isBold:false,align:'center'}
+      {id:4,type:'qr',qrData:'auto',size:40},
+      {id:5,type:'text',label:'',value:'@ASV_prod',fontSize:6,isBold:false,align:'center'}
     ]
   }
 ];
@@ -441,7 +531,7 @@ let state = {
   products: [],
   currentId: null,
   selectedIds: new Set(),
-  settings: { employees: '', activeTemplateId: 'sys_standard', defaultEmployee: '', theme: 'dark' },
+  settings: { employees: '', activeTemplateId: 'sys_standard', defaultEmployee: '', theme: 'dark', dataPath: '' },
   templates: [],
   activeTemplateId: 'sys_standard'
 };
@@ -547,30 +637,8 @@ function smartWrap(text, maxChars) {
   return result.join('<br>');
 }
 
-// ============ FILE SYSTEM HELPERS (Electron) ============
-async function loadDataFromFile() {
-  if (window.electronAPI) {
-    try {
-      const data = await window.electronAPI.loadData();
-      if (data) return data;
-    } catch(e) { console.warn('Не удалось загрузить из файла:', e); }
-  }
-  return null;
-}
-
-async function saveDataToFile(data) {
-  if (window.electronAPI) {
-    try {
-      await window.electronAPI.saveData(data);
-      return true;
-    } catch(e) { console.warn('Не удалось сохранить в файл:', e); }
-  }
-  return false;
-}
-
 // ============ DATA PERSISTENCE ============
 function saveAllData() {
-  // Сохраняем в localStorage
   localStorage.setItem('nls_nomenclature', JSON.stringify(state.nomenclature));
   localStorage.setItem('nls_templates', JSON.stringify(state.templates));
   localStorage.setItem('nls_settings', JSON.stringify(state.settings));
@@ -578,35 +646,43 @@ function saveAllData() {
   localStorage.setItem('nls_selected', JSON.stringify(Array.from(state.selectedIds)));
   localStorage.setItem('nls_current', JSON.stringify(state.currentId));
   
-  // Сохраняем в файл (Electron)
-  const fullData = {
-    nomenclature: state.nomenclature,
-    templates: state.templates,
-    settings: state.settings,
-    products: state.products,
-    selectedIds: Array.from(state.selectedIds),
-    currentId: state.currentId
-  };
-  saveDataToFile(fullData);
+  if (window.flaskAPI) {
+    const fullData = {
+      nomenclature: state.nomenclature,
+      templates: state.templates,
+      settings: state.settings,
+      products: state.products,
+      selectedIds: Array.from(state.selectedIds),
+      currentId: state.currentId
+    };
+    fetch('/api/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fullData)
+    }).catch(e => console.warn('Не удалось сохранить на сервер:', e));
+  }
 }
 
+// ============ ЗАГРУЗКА ДАННЫХ ============
 async function loadAllData() {
   let loadedFromFile = false;
-  // Пытаемся загрузить из файла
-  const fileData = await loadDataFromFile();
-  if (fileData) {
+  
+  if (window.flaskAPI) {
     try {
-      state.nomenclature = fileData.nomenclature || [];
-      state.templates = fileData.templates || [];
-      state.settings = fileData.settings || { employees: '', activeTemplateId: 'sys_standard', defaultEmployee: '', theme: 'dark' };
-      state.products = fileData.products || [];
-      state.selectedIds = new Set(fileData.selectedIds || []);
-      state.currentId = fileData.currentId || null;
-      loadedFromFile = true;
-    } catch(e) { console.warn('Ошибка загрузки из файла', e); }
+      const response = await fetch('/api/load');
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.nomenclature) {
+          applyLoadedData(data);
+          loadedFromFile = true;
+          showToast('✅ Данные загружены с сервера');
+        }
+      }
+    } catch(e) {
+      console.warn('Не удалось загрузить с сервера:', e);
+    }
   }
   
-  // Если не загрузилось из файла, пробуем localStorage
   if (!loadedFromFile) {
     try {
       const nom = localStorage.getItem('nls_nomenclature');
@@ -627,7 +703,6 @@ async function loadAllData() {
       
       const prods = localStorage.getItem('nls_products');
       if (prods) state.products = JSON.parse(prods);
-      else state.products = state.nomenclature.map(n => ({...n, openDate: getNowString(), openedBy: state.settings.defaultEmployee || '', batch: '', noExpiry: false}));
       
       const sel = localStorage.getItem('nls_selected');
       if (sel) state.selectedIds = new Set(JSON.parse(sel));
@@ -639,6 +714,7 @@ async function loadAllData() {
       if (!state.templates.find(t => t.id === state.activeTemplateId)) {
         state.activeTemplateId = state.templates[0]?.id || 'sys_standard';
       }
+      loadedFromFile = true;
     } catch(e) {
       console.error('Load error:', e);
       state.templates = JSON.parse(JSON.stringify(SYSTEM_TEMPLATES));
@@ -649,13 +725,12 @@ async function loadAllData() {
     }
   }
   
-  // Если после загрузки нет продуктов, создаем тестовые
   if (state.nomenclature.length === 0) {
     state.nomenclature = [
-      {id:1,name:"Соус Компания",shelfLife:48,temp:"+2...+6°C",allergens:"молоко, яйца"},
-      {id:2,name:"Филе птицы",shelfLife:24,temp:"0...+4°C",allergens:""},
-      {id:3,name:"Вода питьевая",shelfLife:4320,temp:"до +25°C",allergens:"глютен"},
-      {id:4,name:"Томаты",shelfLife:72,temp:"0...+6°C",allergens:"глютен"}
+      {id:1,name:"Соус фирменный",shelfLife:48,temp:"+2...+6°C",allergens:"молоко, яйца"},
+      {id:2,name:"Филе куриное кубик",shelfLife:24,temp:"0...+4°C",allergens:""},
+      {id:3,name:"Мука пшеничная",shelfLife:4320,temp:"до +25°C",allergens:"глютен"},
+      {id:4,name:"Лаваш тонкий",shelfLife:72,temp:"0...+6°C",allergens:"глютен"}
     ];
     state.products = state.nomenclature.map(n => ({...n, openDate: getNowString(), openedBy: state.settings.defaultEmployee || '', batch: '', noExpiry: false}));
     saveAllData();
@@ -671,6 +746,235 @@ async function loadAllData() {
   }
   
   setTheme(state.settings.theme || 'dark');
+  updateDataPathDisplay();
+  updateStats();
+}
+
+function applyLoadedData(data) {
+  state.nomenclature = data.nomenclature || [];
+  state.templates = data.templates || [];
+  state.settings = data.settings || { employees: '', activeTemplateId: 'sys_standard', defaultEmployee: '', theme: 'dark' };
+  state.products = data.products || [];
+  state.selectedIds = new Set(data.selectedIds || []);
+  state.currentId = data.currentId || null;
+  
+  if (!state.templates.some(t => t.isSystem)) {
+    state.templates = [...SYSTEM_TEMPLATES, ...state.templates.filter(t => !t.isSystem)];
+  }
+  state.activeTemplateId = state.settings.activeTemplateId || 'sys_standard';
+  if (!state.templates.find(t => t.id === state.activeTemplateId)) {
+    state.activeTemplateId = state.templates[0]?.id || 'sys_standard';
+  }
+}
+
+function updateDataPathDisplay() {
+  const display = document.getElementById('currentDataPath');
+  if (state.settings.dataPath) {
+    display.textContent = state.settings.dataPath;
+  } else {
+    display.textContent = '-- не задан (используется localStorage) --';
+  }
+}
+
+function updateStats() {
+  const total = state.products.length;
+  let fresh = 0, expired = 0;
+  const now = new Date();
+  state.products.forEach(p => {
+    if (p.noExpiry || !p.openDate) return;
+    const exp = new Date(p.openDate);
+    exp.setHours(exp.getHours() + (p.shelfLife || 72));
+    if (exp < now) expired++;
+    else fresh++;
+  });
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statFresh').textContent = fresh;
+  document.getElementById('statExpired').textContent = expired;
+}
+
+// ============ ФУНКЦИИ РАБОТЫ С ФАЙЛАМИ (универсальные) ============
+
+function isFlaskApp() {
+  return !window.electronAPI && window.location.port === '5000';
+}
+
+async function openDatabaseFile() {
+  if (isFlaskApp()) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (data.nomenclature) {
+          await fetch('/api/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+          applyLoadedData(data);
+          state.settings.dataPath = file.name;
+          saveAllData();
+          updateDataPathDisplay();
+          initUI();
+          updateStats();
+          showToast('✅ База данных загружена: ' + file.name);
+        } else {
+          showToast('❌ Неверный формат файла', true);
+        }
+      } catch(err) {
+        showToast('❌ Ошибка: ' + err.message, true);
+      }
+    };
+    input.click();
+    return;
+  }
+  
+  if (window.electronAPI) {
+    try {
+      const result = await window.electronAPI.showOpenDialog({
+        title: 'Выберите файл базы данных',
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+        properties: ['openFile']
+      });
+      if (!result.canceled && result.filePaths[0]) {
+        const filePath = result.filePaths[0];
+        const data = await window.electronAPI.loadDataFromFile(filePath);
+        if (data) {
+          applyLoadedData(data);
+          state.settings.dataPath = filePath;
+          saveAllData();
+          updateDataPathDisplay();
+          initUI();
+          updateStats();
+          showToast('✅ База данных загружена: ' + filePath);
+        } else {
+          showToast('❌ Не удалось загрузить файл', true);
+        }
+      }
+    } catch(e) {
+      showToast('❌ Ошибка: ' + e.message, true);
+    }
+  } else {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (data.nomenclature) {
+          applyLoadedData(data);
+          saveAllData();
+          initUI();
+          updateStats();
+          showToast('✅ Данные загружены из: ' + file.name);
+        } else {
+          showToast('❌ Неверный формат файла', true);
+        }
+      } catch(err) {
+        showToast('❌ Ошибка: ' + err.message, true);
+      }
+    };
+    input.click();
+  }
+}
+
+async function openDatabaseFolder() {
+  if (isFlaskApp()) {
+    showToast('ℹ️ В этой версии используйте "Выбрать файл БД"', false);
+    return;
+  }
+  
+  if (window.electronAPI) {
+    try {
+      const result = await window.electronAPI.showOpenDialog({
+        title: 'Выберите папку с базой данных',
+        properties: ['openDirectory']
+      });
+      if (!result.canceled && result.filePaths[0]) {
+        const folderPath = result.filePaths[0];
+        const filePath = folderPath + '/vlavashe_data.json';
+        const data = await window.electronAPI.loadDataFromFile(filePath);
+        if (data) {
+          applyLoadedData(data);
+          state.settings.dataPath = filePath;
+          saveAllData();
+          updateDataPathDisplay();
+          initUI();
+          updateStats();
+          showToast('✅ База данных загружена из: ' + folderPath);
+        } else {
+          showToast('❌ Файл vlavashe_data.json не найден', true);
+        }
+      }
+    } catch(e) {
+      showToast('❌ Ошибка: ' + e.message, true);
+    }
+  } else {
+    showToast('❌ Функция доступна только в EXE-версии', true);
+  }
+}
+
+function resetDataPath() {
+  state.settings.dataPath = '';
+  saveAllData();
+  updateDataPathDisplay();
+  showToast('🔄 Путь сброшен, используется localStorage');
+  loadAllData().then(() => { initUI(); updateStats(); });
+}
+
+async function reloadDatabase() {
+  if (state.settings.dataPath) {
+    if (window.electronAPI) {
+      const data = await window.electronAPI.loadDataFromFile(state.settings.dataPath);
+      if (data) {
+        applyLoadedData(data);
+        saveAllData();
+        initUI();
+        updateStats();
+        showToast('✅ База данных перезагружена');
+        return;
+      }
+    }
+    await loadAllData();
+    initUI();
+    updateStats();
+    showToast('🔄 Данные перезагружены из локального хранилища');
+  } else {
+    showToast('ℹ️ Путь к базе не задан, используйте локальное хранилище', false);
+  }
+}
+
+async function loadDataFromURL() {
+  const url = document.getElementById('dataURLInput').value.trim();
+  if (!url) {
+    showToast('❌ Введите URL', true);
+    return;
+  }
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Ошибка загрузки: ' + response.status);
+    const data = await response.json();
+    
+    if (data.nomenclature) {
+      applyLoadedData(data);
+      saveAllData();
+      initUI();
+      updateStats();
+      showToast('✅ Данные загружены с: ' + url);
+    } else {
+      showToast('❌ Неверный формат данных', true);
+    }
+  } catch(e) {
+    showToast('❌ Ошибка: ' + e.message, true);
+  }
 }
 
 // ============ SAVE TO FILE (кнопка 💾) ============
@@ -685,24 +989,51 @@ function saveAllToFile() {
     exportDate: new Date().toISOString()
   };
   
-  // Если есть Electron API - используем его
-  if (window.electronAPI) {
-    window.electronAPI.showSaveDialog({
-      title: 'Сохранить данные',
-      defaultPath: `NAP_backup_${new Date().toISOString().slice(0,10)}.json`,
-      filters: [{ name: 'JSON', extensions: ['json'] }]
-    }).then(result => {
-      if (!result.canceled && result.filePath) {
-        const fs = require('fs');
-        fs.writeFileSync(result.filePath, JSON.stringify(data, null, 2), 'utf-8');
-        showToast('💾 Данные сохранены в файл');
+  if (window.flaskAPI) {
+    fetch('/api/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }).then(response => {
+      if (response.ok) {
+        showToast('💾 Данные сохранены на сервер');
+      } else {
+        showToast('❌ Не удалось сохранить на сервер', true);
       }
     }).catch(() => {
-      // fallback - скачивание через браузер
-      downloadJSON(data);
+      showToast('❌ Ошибка сохранения', true);
     });
+    return;
+  }
+  
+  if (window.electronAPI) {
+    if (state.settings.dataPath) {
+      window.electronAPI.saveDataToFile(data, state.settings.dataPath).then(success => {
+        if (success) {
+          showToast('💾 Данные сохранены в: ' + state.settings.dataPath);
+        } else {
+          showToast('❌ Не удалось сохранить файл', true);
+        }
+      });
+    } else {
+      window.electronAPI.showSaveDialog({
+        title: 'Сохранить данные',
+        defaultPath: 'vlavashe_data.json',
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      }).then(result => {
+        if (!result.canceled && result.filePath) {
+          window.electronAPI.saveDataToFile(data, result.filePath).then(success => {
+            if (success) {
+              state.settings.dataPath = result.filePath;
+              saveAllData();
+              updateDataPathDisplay();
+              showToast('💾 Данные сохранены в: ' + result.filePath);
+            }
+          });
+        }
+      });
+    }
   } else {
-    // Браузерный fallback
     downloadJSON(data);
   }
 }
@@ -711,20 +1042,21 @@ function downloadJSON(data) {
   const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `NAP_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.download = 'vlavashe_data.json';
   a.click();
   URL.revokeObjectURL(a.href);
-  showToast('💾 Данные сохранены в файл');
+  showToast('💾 Файл скачан как vlavashe_data.json');
 }
 
 // ============ INIT ============
 async function init() {
+  window.flaskAPI = !window.electronAPI && window.location.port === '5000';
+  
   await loadAllData();
   document.getElementById('settingsEmployees').value = state.settings.employees || '';
   initUI();
   startLiveClock();
   
-  // Проверка на истекающие сроки
   const now = new Date();
   let expiringSoon = state.products.filter(p => {
     if (p.noExpiry || !p.openDate) return false;
@@ -737,6 +1069,9 @@ async function init() {
     const names = expiringSoon.map(p => p.name).join(', ');
     showToast(`⚠️ Внимание! У продуктов истекает срок: ${names}`, true);
   }
+  
+  updateDataPathDisplay();
+  updateStats();
 }
 
 function initUI() {
@@ -762,6 +1097,7 @@ function setupTabs() {
       document.getElementById('tab-' + tabId).classList.add('active');
       if (tabId === 'constructor') renderConstructor();
       if (tabId === 'quick') { populateQuickSelects(); updateQuickPreview(); }
+      if (tabId === 'settings') updateStats();
     });
   });
 }
@@ -976,6 +1312,7 @@ function quickAdd() {
   loadToEditor(newId);
   renderPreview();
   populateQuickSelects();
+  updateStats();
   showToast('✅ Добавлено');
 }
 
@@ -990,6 +1327,7 @@ function deleteProduct(id) {
   if (state.currentId) loadToEditor(state.currentId);
   renderPreview();
   populateQuickSelects();
+  updateStats();
 }
 
 function loadToEditor(id) {
@@ -1026,6 +1364,7 @@ function updateCurrent() {
   saveAllData();
   renderProducts();
   renderPreview();
+  updateStats();
 }
 
 function recalcExpiry() {
@@ -1258,7 +1597,6 @@ function renderLabel(data, sizeMm, isPrint) {
       row.style.fontSize = (block.fontSize || 10) + 'px';
       row.style.justifyContent = block.align === 'center' ? 'center' : (block.align === 'right' ? 'flex-end' : 'flex-start');
       const text = replaceVars(block.value || '', data);
-      // Применяем умный перенос для длинного текста
       const wrappedText = smartWrap(text, 30);
       if (block.align === 'center') {
         const span = document.createElement('span');
@@ -1447,6 +1785,7 @@ function debugQR() {
   alert(`🔍 QR-СОДЕРЖИМОЕ:\n\nНАЗВАНИЕ: ${data.name}\nВСКРЫТО: ${data.openDate}\nГОДЕН ДО: ${data.expiry}\nВСКРЫЛ: ${data.openedBy}\nПАРТИЯ: ${data.batch}\nХРАНЕНИЕ: ${data.temp}`);
 }
 
+// ============ ОБЫЧНАЯ ПЕЧАТЬ ============
 function printLabels() {
   const mode = document.getElementById('printMode').value;
   const template = getActiveTemplate();
@@ -1456,54 +1795,264 @@ function printLabels() {
   const printArea = document.getElementById('printArea');
   printArea.innerHTML = '';
   printArea.classList.remove('hidden');
-  
+
+  // Удаляем старый динамический стиль печати
+  const oldStyle = document.getElementById('print-style');
+  if (oldStyle) oldStyle.remove();
+
   if (mode === 'single') {
     const p = state.products.find(x => x.id === state.currentId);
     if (!p) { alert('Выберите продукт'); printArea.classList.add('hidden'); return; }
+
     const label = renderLabel(buildLabelData(p), size, true);
     label.className = 'print-single';
-    label.style.width = w + 'mm';
-    label.style.height = h + 'mm';
-    label.style.padding = '1mm';
+    // Жёстко фиксируем размер этикетки = размеру страницы
+    label.style.cssText = `
+      width: ${w}mm;
+      height: ${h}mm;
+      padding: 2mm;
+      margin: 0;
+      box-sizing: border-box;
+      background: white;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    `;
+    printArea.style.cssText = `
+      position: fixed;
+      left: 0; top: 0;
+      width: ${w}mm;
+      height: ${h}mm;
+      margin: 0; padding: 0;
+      background: white;
+      overflow: hidden;
+    `;
     printArea.appendChild(label);
+
+    // @page точно по размеру стикера — одна этикетка = одна страница
     const style = document.createElement('style');
     style.id = 'print-style';
-    style.textContent = `@page{size:${w}mm ${h}mm;margin:0;}`;
+    style.textContent = `@page { size: ${w}mm ${h}mm; margin: 0; }`;
     document.head.appendChild(style);
+
   } else {
+    // Пакетная печать на A4
     const selected = state.products.filter(p => state.selectedIds.has(p.id));
     if (selected.length === 0) { alert('Выберите продукты'); printArea.classList.add('hidden'); return; }
     const [cols, rows] = document.getElementById('batchLayout').value.split('x').map(Number);
     const perPage = cols * rows;
+
+    printArea.style.cssText = `
+      position: fixed;
+      left: 0; top: 0;
+      margin: 0; padding: 0;
+      background: white;
+    `;
+
     for (let i = 0; i < selected.length; i += perPage) {
       const page = document.createElement('div');
-      page.style.cssText = `display:grid;grid-template-columns:repeat(${cols},${w}mm);gap:2mm;padding:3mm;width:${cols * w + (cols-1) * 2 + 6}mm;min-height:${rows * h + (rows-1) * 2 + 6}mm;page-break-after:always;background:white;`;
+      page.style.cssText = `
+        display: grid;
+        grid-template-columns: repeat(${cols}, ${w}mm);
+        gap: 0;
+        padding: 0;
+        margin: 0;
+        background: white;
+        page-break-after: always;
+        break-after: page;
+      `;
       selected.slice(i, i + perPage).forEach(p => {
         const label = renderLabel(buildLabelData(p), size, true);
         label.className = 'batch-label';
-        label.style.width = w + 'mm';
-        label.style.height = h + 'mm';
-        label.style.padding = '1mm';
-        label.style.border = '0.5px solid #000';
+        label.style.cssText = `
+          width: ${w}mm;
+          height: ${h}mm;
+          padding: 2mm;
+          margin: 0;
+          box-sizing: border-box;
+          border: 0.5px solid #999;
+          background: white;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+        `;
         page.appendChild(label);
       });
       printArea.appendChild(page);
     }
+
     const style = document.createElement('style');
     style.id = 'print-style';
-    style.textContent = `@page{size:A4;margin:0;}`;
+    style.textContent = `@page { size: A4 portrait; margin: 0; }`;
     document.head.appendChild(style);
   }
-  
+
   setTimeout(() => {
     window.print();
     setTimeout(() => {
       printArea.classList.add('hidden');
       printArea.innerHTML = '';
+      printArea.style.cssText = '';
       const s = document.getElementById('print-style');
       if (s) s.remove();
-    }, 500);
-  }, 400);
+    }, 600);
+  }, 300);
+}
+
+// ============ ПЕЧАТЬ ДЛЯ DATAMAX / ПРИНТЕРОВ ЭТИКЕТОК ============
+// Ключевые правила для печати на принтере этикеток:
+// 1. @page size = точный размер стикера (например 90x60мм)
+// 2. printArea = position:fixed, width/height = размер стикера
+// 3. Одна этикетка = один элемент, без flex-wrap, без дочерних страниц
+// 4. Никаких padding/margin на body, html, @page
+function printLabelsForDatamax() {
+    const mode = document.getElementById('printMode').value;
+    const template = getActiveTemplate();
+    const w = parseInt(document.getElementById('printWidth').value) || template.widthMm || 90;
+    const h = parseInt(document.getElementById('printHeight').value) || template.heightMm || 60;
+    const size = [w, h];
+
+    const printArea = document.getElementById('printArea');
+    printArea.innerHTML = '';
+    printArea.classList.remove('hidden');
+
+    // Удаляем старый стиль
+    const oldStyle = document.getElementById('print-style');
+    if (oldStyle) oldStyle.remove();
+
+    if (mode === 'single') {
+        // ── ОДНА ЭТИКЕТКА ──────────────────────────────────
+        const p = state.products.find(x => x.id === state.currentId);
+        if (!p) { alert('Выберите продукт'); printArea.classList.add('hidden'); return; }
+
+        const label = renderLabel(buildLabelData(p), size, true);
+
+        // Этикетка = ровно размер стикера, никаких flex/grid оберток
+        label.style.cssText = `
+            display: block;
+            width: ${w}mm;
+            height: ${h}mm;
+            min-height: ${h}mm;
+            max-height: ${h}mm;
+            padding: 2mm;
+            margin: 0;
+            border: none;
+            box-sizing: border-box;
+            background: white;
+            overflow: hidden;
+            font-size: 9px;
+            position: relative;
+        `;
+
+        // printArea = строго по размеру этикетки, position:fixed
+        printArea.style.cssText = `
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: ${w}mm;
+            height: ${h}mm;
+            margin: 0;
+            padding: 0;
+            background: white;
+            overflow: hidden;
+        `;
+        printArea.appendChild(label);
+
+        // @page по размеру стикера → принтер получит ровно один стикер
+        const style = document.createElement('style');
+        style.id = 'print-style';
+        style.textContent = `
+            @page {
+                size: ${w}mm ${h}mm;
+                margin: 0;
+            }
+            html, body {
+                margin: 0 !important;
+                padding: 0 !important;
+                width: ${w}mm !important;
+                height: ${h}mm !important;
+                overflow: hidden !important;
+                background: white !important;
+            }
+        `;
+        document.head.appendChild(style);
+
+        setTimeout(() => {
+            window.print();
+            setTimeout(() => {
+                printArea.classList.add('hidden');
+                printArea.innerHTML = '';
+                printArea.style.cssText = '';
+                const s = document.getElementById('print-style');
+                if (s) s.remove();
+            }, 600);
+        }, 300);
+
+    } else {
+        // ── ПАКЕТ: каждая этикетка = отдельная страница ───
+        const selected = state.products.filter(p => state.selectedIds.has(p.id));
+        if (selected.length === 0) { alert('Выберите продукты'); printArea.classList.add('hidden'); return; }
+
+        printArea.style.cssText = `
+            position: fixed;
+            left: 0;
+            top: 0;
+            margin: 0;
+            padding: 0;
+            background: white;
+            width: ${w}mm;
+        `;
+
+        selected.forEach((p, idx) => {
+            const label = renderLabel(buildLabelData(p), size, true);
+            label.style.cssText = `
+                display: block;
+                width: ${w}mm;
+                height: ${h}mm;
+                min-height: ${h}mm;
+                max-height: ${h}mm;
+                padding: 2mm;
+                margin: 0;
+                border: none;
+                box-sizing: border-box;
+                background: white;
+                overflow: hidden;
+                font-size: 9px;
+                position: relative;
+                page-break-after: always;
+                break-after: page;
+            `;
+            printArea.appendChild(label);
+        });
+
+        // Каждая страница = размер стикера → каждая этикетка на свой стикер
+        const style = document.createElement('style');
+        style.id = 'print-style';
+        style.textContent = `
+            @page {
+                size: ${w}mm ${h}mm;
+                margin: 0;
+            }
+            html, body {
+                margin: 0 !important;
+                padding: 0 !important;
+                background: white !important;
+            }
+        `;
+        document.head.appendChild(style);
+
+        setTimeout(() => {
+            window.print();
+            setTimeout(() => {
+                printArea.classList.add('hidden');
+                printArea.innerHTML = '';
+                printArea.style.cssText = '';
+                const s = document.getElementById('print-style');
+                if (s) s.remove();
+            }, 600);
+        }, 300);
+    }
 }
 
 // ============ CONSTRUCTOR WITH DRAG & DROP ============
@@ -1735,6 +2284,7 @@ function importNomenclature(event) {
       state.products = state.nomenclature.map(n => ({...n, openDate: getNowString(), openedBy: state.settings.defaultEmployee || '', batch: '', noExpiry: false}));
       renderProducts();
       populateQuickSelects();
+      updateStats();
       log.innerHTML += `<div class="success">✅ Импортировано: ${imported} | Ошибок: ${errors}</div>`;
       showToast(`✅ Загружено ${imported} позиций`);
     } catch(err) {
@@ -1754,7 +2304,7 @@ function downloadTemplate() {
   const ws = XLSX.utils.json_to_sheet(template);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Шаблон");
-  XLSX.writeFile(wb, "Шаблон_сырья.xlsx");
+  XLSX.writeFile(wb, "Шаблон_сырья_Влаваше.xlsx");
   showToast('📄 Шаблон скачан');
 }
 
@@ -1780,7 +2330,7 @@ function exportAllData() {
   const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `NAP_full_${new Date().toISOString().slice(0,10)}.json`;
+  a.download = `vlavashe_full_${new Date().toISOString().slice(0,10)}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
   showToast('📤 Экспорт выполнен');
@@ -1804,6 +2354,7 @@ function importAllData(event) {
       }
       saveAllData();
       initUI();
+      updateStats();
       showToast('✅ Импорт выполнен');
     } catch(err) {
       showToast('❌ Ошибка: ' + err.message, true);
