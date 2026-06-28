@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NEURAL LABEL SYSTEM HACCP PRO | ВЛАВАШЕ ФУД КОМПАНИ</title>
+<title>NEURAL LABEL SYSTEM HACCP PRO | NEURAL_ARCHITECT_PREMIUM++</title>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
@@ -420,7 +420,7 @@ const SYSTEM_TEMPLATES = [
       {id:6,type:'text',label:'⚠ АЛЛЕРГЕНЫ:',value:'{allergens}',fontSize:10,isBold:true,color:'#d32f2f',condition:'allergens'},
       {id:7,type:'divider'},
       {id:8,type:'qr',qrData:'auto',size:55},
-      {id:9,type:'text',label:'',value:'ООО «ВЛАВАШЕ ФУД КОМПАНИ» | ХАССП',fontSize:7,isBold:false,align:'center'}
+      {id:9,type:'text',label:'',value:'ООО «NEURAL_ARCHITECT_PREMIUM++» | ХАССП',fontSize:7,isBold:false,align:'center'}
     ]
   },
   {
@@ -652,10 +652,10 @@ async function loadAllData() {
   // Если после загрузки нет продуктов, создаем тестовые
   if (state.nomenclature.length === 0) {
     state.nomenclature = [
-      {id:1,name:"Соус фирменный",shelfLife:48,temp:"+2...+6°C",allergens:"молоко, яйца"},
-      {id:2,name:"Филе куриное кубик",shelfLife:24,temp:"0...+4°C",allergens:""},
-      {id:3,name:"Мука пшеничная",shelfLife:4320,temp:"до +25°C",allergens:"глютен"},
-      {id:4,name:"Лаваш тонкий",shelfLife:72,temp:"0...+6°C",allergens:"глютен"}
+      {id:1,name:"Соус "Компания"",shelfLife:48,temp:"+2...+6°C",allergens:"молоко, яйца"},
+      {id:2,name:"Филе птицы",shelfLife:24,temp:"0...+4°C",allergens:""},
+      {id:3,name:"Вода питьевая",shelfLife:4320,temp:"до +25°C",allergens:"глютен"},
+      {id:4,name:"Томаты",shelfLife:72,temp:"0...+6°C",allergens:"глютен"}
     ];
     state.products = state.nomenclature.map(n => ({...n, openDate: getNowString(), openedBy: state.settings.defaultEmployee || '', batch: '', noExpiry: false}));
     saveAllData();
@@ -1754,7 +1754,7 @@ function downloadTemplate() {
   const ws = XLSX.utils.json_to_sheet(template);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Шаблон");
-  XLSX.writeFile(wb, "Шаблон_сырья_Влаваше.xlsx");
+  XLSX.writeFile(wb, "Шаблон_сырья.xlsx");
   showToast('📄 Шаблон скачан');
 }
 
