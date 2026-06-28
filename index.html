@@ -430,7 +430,7 @@ const SYSTEM_TEMPLATES = [
       {id:2,type:'grid2',col1Label:'Вск:',col1Value:'{openDate}',col2Label:'До:',col2Value:'{expiry}',fontSize:9},
       {id:3,type:'grid2',col1Label:'Хран:',col1Value:'{temp}',col2Label:'Кто:',col2Value:'{openedBy}',fontSize:9},
       {id:4,type:'qr',qrData:'auto',size:38},
-      {id:5,type:'text',label:'',value:'@VLAVASHE',fontSize:6,isBold:false,align:'center'}
+      {id:5,type:'text',label:'',value:'@NAP',fontSize:6,isBold:false,align:'center'}
     ]
   }
 ];
@@ -652,7 +652,7 @@ async function loadAllData() {
   // Если после загрузки нет продуктов, создаем тестовые
   if (state.nomenclature.length === 0) {
     state.nomenclature = [
-      {id:1,name:"Соус "Компания"",shelfLife:48,temp:"+2...+6°C",allergens:"молоко, яйца"},
+      {id:1,name:"Соус Компания",shelfLife:48,temp:"+2...+6°C",allergens:"молоко, яйца"},
       {id:2,name:"Филе птицы",shelfLife:24,temp:"0...+4°C",allergens:""},
       {id:3,name:"Вода питьевая",shelfLife:4320,temp:"до +25°C",allergens:"глютен"},
       {id:4,name:"Томаты",shelfLife:72,temp:"0...+6°C",allergens:"глютен"}
@@ -689,7 +689,7 @@ function saveAllToFile() {
   if (window.electronAPI) {
     window.electronAPI.showSaveDialog({
       title: 'Сохранить данные',
-      defaultPath: `vlavashe_backup_${new Date().toISOString().slice(0,10)}.json`,
+      defaultPath: `NAP_backup_${new Date().toISOString().slice(0,10)}.json`,
       filters: [{ name: 'JSON', extensions: ['json'] }]
     }).then(result => {
       if (!result.canceled && result.filePath) {
@@ -711,7 +711,7 @@ function downloadJSON(data) {
   const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `vlavashe_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.download = `NAP_backup_${new Date().toISOString().slice(0,10)}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
   showToast('💾 Данные сохранены в файл');
@@ -1780,7 +1780,7 @@ function exportAllData() {
   const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `vlavashe_full_${new Date().toISOString().slice(0,10)}.json`;
+  a.download = `NAP_full_${new Date().toISOString().slice(0,10)}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
   showToast('📤 Экспорт выполнен');
